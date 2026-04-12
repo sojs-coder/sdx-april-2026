@@ -31,17 +31,8 @@ from pathlib import Path
 IMAGE_NAME = "omnara-agent"
 CONTAINER_PREFIX = "omnara-agent"
 LOCAL_CREDS = Path.home() / ".omnara" / "creds.json"
+LOCAL_CODEX_AUTH = Path.home() / ".codex" / "auth.json"
 
-# Load .env from project root if present
-_env_path = Path(__file__).parent.parent / ".env"
-if _env_path.exists():
-    for line in _env_path.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, _, v = line.partition("=")
-            os.environ.setdefault(k.strip(), v.strip().strip('"'))
-
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 
 def run(cmd, **kwargs):
@@ -60,12 +51,12 @@ def build():
 
 
 def start():
-    if not OPENAI_API_KEY:
-        print("Error: OPENAI_API_KEY is not set. Add it to .env or export it.")
-        sys.exit(1)
-
     if not LOCAL_CREDS.exists():
         print(f"Error: {LOCAL_CREDS} not found. Log in to Omnara locally first: omnara")
+        sys.exit(1)
+
+    if not LOCAL_CODEX_AUTH.exists():
+        print(f"Error: {LOCAL_CODEX_AUTH} not found. Log in to Codex locally first: codex")
         sys.exit(1)
 
     name = f"{CONTAINER_PREFIX}-{int(time.time())}"
@@ -79,14 +70,10 @@ def start():
             "--tty",
             # Mount Omnara creds (read-only)
             "--volume", f"{LOCAL_CREDS}:/root/.omnara/creds.json:ro",
-            # Inject OpenAI API key
-            "--env", f"OPENAI_API_KEY={OPENAI_API_KEY}",
-            # Write Codex config on startup, then run omnara
+            # Mount Codex auth tokens (read-only) — no login prompt
+            "--volume", f"{LOCAL_CODEX_AUTH}:/root/.codex/auth.json:ro",
             IMAGE_NAME,
-            "bash", "-c",
-            'mkdir -p /root/.codex && '
-            'echo \'{"apiKey":"\'$OPENAI_API_KEY\'"}\' > /root/.codex/config.json && '
-            'omnara',
+            "omnara",
         ],
         capture_output=True,
         text=True,
