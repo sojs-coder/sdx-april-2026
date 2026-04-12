@@ -7,11 +7,11 @@ import * as THREE from "three";
 
 // ─── Stage metadata (the 5 Platonic solids in ascending complexity) ──
 const STAGES = [
-  { desc: "01 / tetrahedron"  },  //  4 faces
-  { desc: "02 / hexahedron"   },  //  6 faces
-  { desc: "03 / octahedron"   },  //  8 faces
-  { desc: "04 / dodecahedron" },  // 12 faces
-  { desc: "05 / icosahedron"  },  // 20 faces
+  { desc: "01 / trend extraction"  },  //  4 faces
+  { desc: "02 / MVP ideation"   },  //  6 faces
+  { desc: "03 / product definition"   },  //  8 faces
+  { desc: "04 / automatic construction" },  // 12 faces
+  { desc: "05 / Final Product"  },  // 20 faces
 ] as const;
 
 // Rotation slows as complexity increases — let the shape speak.
