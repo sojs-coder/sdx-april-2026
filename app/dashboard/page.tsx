@@ -1,49 +1,78 @@
 "use client";
 
-import { HotTopics } from "@/components/dashboard/HotTopics";
 import { BuildProcess } from "@/components/dashboard/BuildProcess";
-import { useSentiment } from "@/hooks/useSentiment";
+import { HotTopics } from "@/components/dashboard/HotTopics";
+import { useTwitterTrends } from "@/hooks/useTwitterTrends";
+import { formatCompactNumber, formatFetchedAtLabel } from "@/lib/twitter-trends";
 import { cn } from "@/lib/utils";
 
-function Banner() {
-  const { metrics, connected } = useSentiment({ interval: 2200 });
-  const isBull = metrics.overallScore > 0.05;
-  const isBear = metrics.overallScore < -0.05;
-  const label =
-    metrics.overallScore > 0.3 ? "SURGING" :
-    isBull ? "RISING" :
-    metrics.overallScore < -0.3 ? "FADING" :
-    isBear ? "COOLING" : "STEADY";
-  const color = isBull ? "text-amber-400" : isBear ? "text-red-400" : "text-zinc-600";
-  const dot   = isBull ? "bg-amber-500"  : isBear ? "bg-red-500"   : "bg-zinc-700";
+function Banner({
+  connected,
+  cached,
+  error,
+  fetchedAt,
+  topTrend,
+}: {
+  connected: boolean;
+  cached: boolean;
+  error: string | null;
+  fetchedAt: string | null;
+  topTrend: {
+    trend: string;
+    post_count: number;
+  } | null;
+}) {
+  const label = error && !connected ? "OFFLINE" : cached ? "CACHED" : connected ? "LIVE" : "SYNCING";
+  const color =
+    error && !connected
+      ? "text-red-400"
+      : cached
+        ? "text-zinc-400"
+        : "text-amber-400";
+  const dot =
+    error && !connected
+      ? "bg-red-500"
+      : cached
+        ? "bg-zinc-500"
+        : "bg-amber-500";
 
   return (
-    <div className="flex items-center gap-3 px-4 py-1.5 border-b border-amber-500/8 text-[11px] font-mono">
+    <div className="flex items-center gap-3 border-b border-amber-500/8 px-4 py-1.5 text-[11px] font-mono">
       <div className={cn("flex items-center gap-1.5", color)}>
-        <div className={cn("w-1.5 h-1.5 rounded-full", dot, connected && "animate-pulse")} />
+        <div className={cn("h-1.5 w-1.5 rounded-full", dot, connected && "animate-pulse")} />
         <span className="font-bold tracking-widest">{label}</span>
       </div>
-      <span className="text-zinc-800">·</span>
+      <span className="text-zinc-800">|</span>
       <span className={cn("tabular-nums", color)}>
-        {metrics.overallScore > 0 ? "+" : ""}{(metrics.overallScore * 100).toFixed(2)}%
+        {topTrend ? `${topTrend.trend} ${formatCompactNumber(topTrend.post_count)}/hr` : error ?? "waiting for trend stream"}
       </span>
-      <div className="ml-auto text-zinc-800 tabular-nums">
-        {new Date().toLocaleTimeString("en-US", { hour12: false })}
-      </div>
+      <div className="ml-auto tabular-nums text-zinc-800">{formatFetchedAtLabel(fetchedAt)}</div>
     </div>
   );
 }
 
 export default function DashboardPage() {
+  const trendStream = useTwitterTrends({ interval: 45_000, limit: 8 });
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden pt-11">
-      <Banner />
+    <div className="flex h-screen flex-col overflow-hidden pt-11">
+      <Banner
+        connected={trendStream.connected}
+        cached={trendStream.cached}
+        error={trendStream.error}
+        fetchedAt={trendStream.fetchedAt}
+        topTrend={trendStream.trends[0] ?? null}
+      />
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-[3] min-w-0 border-r border-white/5 overflow-hidden">
-          <HotTopics />
+        <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/5">
+          <HotTopics {...trendStream} />
         </div>
-        <div className="flex-[2] min-w-0 overflow-hidden">
-          <BuildProcess />
+        <div className="min-w-0 flex-[2] overflow-hidden">
+          <BuildProcess
+            connected={trendStream.connected}
+            trends={trendStream.trends}
+            isLoading={trendStream.isLoading}
+          />
         </div>
       </div>
     </div>
