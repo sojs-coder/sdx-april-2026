@@ -2,103 +2,151 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Hash, RadioTower, WifiOff } from "lucide-react";
-import type { TwitterTrend } from "@/lib/twitter-trends";
+import { Hash, Layers3, RadioTower, WifiOff } from "lucide-react";
+import type { KeywordCluster } from "@/lib/twitter-trends";
 import {
+  displayKeyword,
   formatCompactNumber,
   formatFetchedAtLabel,
-  trendSlug,
+  formatPercent,
 } from "@/lib/twitter-trends";
 import { cn } from "@/lib/utils";
 
-function HeatBar({ score, maxScore }: { score: number; maxScore: number }) {
-  const heat = maxScore > 0 ? Math.max(0.08, score / maxScore) : 0;
+function MomentumBar({
+  shareOfWindow,
+  maxShare,
+}: {
+  shareOfWindow: number;
+  maxShare: number;
+}) {
+  const scale = maxShare > 0 ? Math.max(0.08, shareOfWindow / maxShare) : 0;
 
   return (
-    <div className="h-1 w-24 overflow-hidden rounded-full bg-white/5">
+    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/5">
       <motion.div
         className="h-full w-full origin-left rounded-full bg-amber-500"
-        animate={{ scaleX: heat }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        animate={{ scaleX: scale }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
       />
     </div>
   );
 }
 
-function TopicRow({
-  trend,
+function ClusterRow({
+  cluster,
   rank,
-  maxScore,
+  maxShare,
 }: {
-  trend: TwitterTrend;
+  cluster: KeywordCluster;
   rank: number;
-  maxScore: number;
+  maxShare: number;
 }) {
-  const tags = trend.representative_hashtags.slice(0, 2);
-
   return (
-    <Link href={`/dashboard/${trendSlug(trend.trend)}`} className="block">
+    <Link href={`/dashboard/${cluster.slug}`} className="block">
       <motion.div
         layout
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={{ duration: 0.2 }}
         className={cn(
-          "group grid cursor-pointer items-center gap-4 border-b border-white/4 px-5 py-3.5 transition-colors",
+          "group grid cursor-pointer items-center gap-4 border-b border-white/4 px-5 py-3 transition-colors",
           "hover:bg-white/[0.04]",
-          rank === 1 && "bg-amber-500/4",
+          rank <= 2 && "bg-amber-500/[0.035]",
         )}
-        style={{ gridTemplateColumns: "2rem 7rem 1fr auto auto" }}
+        style={{ gridTemplateColumns: "2rem 8rem 1.35fr 7rem 5rem 5rem" }}
       >
         <span
           className={cn(
             "text-sm font-mono font-bold tabular-nums",
-            rank === 1 ? "text-amber-500" : rank <= 3 ? "text-amber-500/50" : "text-zinc-800",
+            rank === 1 ? "text-amber-500" : rank <= 3 ? "text-amber-500/60" : "text-zinc-800",
           )}
         >
           {String(rank).padStart(2, "0")}
         </span>
 
-        <span
-          className={cn(
-            "truncate text-sm font-bold tracking-wide",
-            rank === 1 ? "text-white" : "text-white/80",
-          )}
-          title={trend.trend}
-        >
-          {trend.trend}
-        </span>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold tracking-wide text-white">
+            {displayKeyword(cluster.keyword)}
+          </div>
+          <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-zinc-700">
+            <Layers3 className="h-3 w-3" />
+            {cluster.memberCount} members
+          </div>
+        </div>
 
-        <div className="flex min-w-0 items-center gap-3">
-          <HeatBar score={trend.trend_score} maxScore={maxScore} />
-          <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-mono text-zinc-700">
-            {tags.length > 0 ? (
+        <div className="min-w-0">
+          <div className="truncate text-[12px] font-medium text-white/85">
+            {cluster.leadTrend.trend}
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-mono text-zinc-700">
+            {cluster.hashtags.length > 0 ? (
               <>
                 <Hash className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">{tags.join(" ")}</span>
+                <span className="truncate">{cluster.hashtags.slice(0, 3).join(" ")}</span>
               </>
             ) : (
-              <span className="truncate text-zinc-800">keyword cluster</span>
+              <span className="truncate text-zinc-800">derived from lexical overlap</span>
             )}
           </div>
         </div>
 
-        <div className="text-sm font-semibold tabular-nums text-amber-400">
-          {formatCompactNumber(trend.trend_score)}
+        <div className="min-w-0">
+          <MomentumBar shareOfWindow={cluster.shareOfWindow} maxShare={maxShare} />
+          <div className="mt-1 text-[10px] font-mono text-zinc-700">
+            {formatPercent(cluster.shareOfWindow)} of live window
+          </div>
         </div>
 
-        <span className="w-12 text-right text-[11px] font-mono text-zinc-700">
-          {formatCompactNumber(trend.post_count)}
-          <span className="ml-0.5 text-zinc-800">vol</span>
-        </span>
+        <div className="text-right text-sm font-semibold tabular-nums text-amber-400">
+          {formatCompactNumber(cluster.totalPosts)}
+        </div>
+
+        <div className="text-right text-[11px] font-mono text-zinc-600">
+          {cluster.hashtags.length}
+          <span className="ml-0.5 text-zinc-800">tags</span>
+        </div>
       </motion.div>
     </Link>
   );
 }
 
+function DensityStrip({
+  clusterCount,
+  trendsCount,
+  totalPosts,
+}: {
+  clusterCount: number;
+  trendsCount: number;
+  totalPosts: number;
+}) {
+  const cells = [
+    { label: "clusters", value: String(clusterCount) },
+    { label: "raw trends", value: String(trendsCount) },
+    { label: "combined reach", value: formatCompactNumber(totalPosts) },
+  ];
+
+  return (
+    <div className="grid grid-cols-3 border-b border-white/4">
+      {cells.map((cell) => (
+        <div key={cell.label} className="border-r border-white/4 px-5 py-2 last:border-r-0">
+          <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
+            {cell.label}
+          </div>
+          <div className="mt-1 text-sm font-semibold text-white">
+            {cell.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type HotTopicsProps = {
-  trends: TwitterTrend[];
+  clusters: KeywordCluster[];
+  trendCount: number;
+  clusterCount: number;
+  windowPosts: number;
   cached: boolean;
   fetchedAt: string | null;
   isLoading: boolean;
@@ -107,26 +155,30 @@ type HotTopicsProps = {
 };
 
 export function HotTopics({
-  trends,
+  clusters,
+  trendCount,
+  clusterCount,
+  windowPosts,
   cached,
   fetchedAt,
   isLoading,
   error,
   connected,
 }: HotTopicsProps) {
-  const maxScore = trends[0]?.trend_score ?? 0;
+  const maxShare = clusters[0]?.shareOfWindow ?? 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div
         className="grid flex-shrink-0 items-center gap-4 border-b border-white/6 px-5 py-2"
-        style={{ gridTemplateColumns: "2rem 7rem 1fr auto auto" }}
+        style={{ gridTemplateColumns: "2rem 8rem 1.35fr 7rem 5rem 5rem" }}
       >
         <span className="text-[10px] font-mono text-zinc-800">#</span>
-        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-700">Trend</span>
-        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-700">Momentum</span>
-        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-700">Posts/hr</span>
-        <span className="text-right text-[10px] font-mono uppercase tracking-widest text-zinc-700">Vol</span>
+        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-700">Cluster</span>
+        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-700">Lead Signal</span>
+        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-700">Window Share</span>
+        <span className="text-right text-[10px] font-mono uppercase tracking-widest text-zinc-700">Volume</span>
+        <span className="text-right text-[10px] font-mono uppercase tracking-widest text-zinc-700">Tags</span>
       </div>
 
       <div className="flex items-center gap-2 border-b border-white/4 px-5 py-2 text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
@@ -136,33 +188,44 @@ export function HotTopics({
           <WifiOff className="h-3 w-3 text-zinc-700" />
         )}
         <span className={cached ? "text-zinc-500" : connected ? "text-amber-400/80" : "text-zinc-700"}>
-          {cached ? "cached relay" : connected ? "live twitter relay" : "waiting for relay"}
+          {cached ? "cached relay" : connected ? "live keyword cluster ledger" : "waiting for relay"}
         </span>
         <span className="ml-auto tracking-normal text-zinc-800">{formatFetchedAtLabel(fetchedAt)}</span>
       </div>
 
+      <DensityStrip
+        clusterCount={clusterCount}
+        trendsCount={trendCount}
+        totalPosts={windowPosts}
+      />
+
       <div className="flex-1 overflow-y-auto">
         <AnimatePresence mode="popLayout" initial={false}>
-          {trends.map((trend, index) => (
-            <TopicRow key={trend.trend} trend={trend} rank={index + 1} maxScore={maxScore} />
+          {clusters.map((cluster, index) => (
+            <ClusterRow
+              key={cluster.slug}
+              cluster={cluster}
+              rank={index + 1}
+              maxShare={maxShare}
+            />
           ))}
         </AnimatePresence>
 
-        {isLoading && trends.length === 0 && (
+        {isLoading && clusters.length === 0 && (
           <div className="flex h-32 items-center justify-center text-xs font-mono text-zinc-800">
-            syncing live trend extraction...
+            assembling keyword clusters...
           </div>
         )}
 
-        {!isLoading && error && trends.length === 0 && (
+        {!isLoading && error && clusters.length === 0 && (
           <div className="flex h-32 items-center justify-center px-8 text-center text-xs font-mono text-red-400/80">
             {error}
           </div>
         )}
 
-        {!isLoading && !error && trends.length === 0 && (
+        {!isLoading && !error && clusters.length === 0 && (
           <div className="flex h-32 items-center justify-center text-xs font-mono text-zinc-800">
-            no trends returned from extractor
+            no clusters available in the current live window
           </div>
         )}
       </div>

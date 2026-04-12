@@ -2,6 +2,10 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { NextRequest } from "next/server";
+import {
+  buildTwitterTrendsSnapshot,
+  type TwitterTrendsResponse,
+} from "@/lib/twitter-trends";
 
 const require = createRequire(import.meta.url);
 
@@ -43,7 +47,12 @@ export const dynamic = "force-dynamic";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_TRENDS = 50;
-const cache = new Map<number, { fetchedAt: string; result: DetectedTrend[]; ts: number }>();
+type CachedPayload = Omit<TwitterTrendsResponse, "cached" | "fetched_at">;
+
+const cache = new Map<
+  number,
+  { fetchedAt: string; result: CachedPayload; ts: number }
+>();
 
 let envLoadPromise: Promise<void> | null = null;
 
@@ -131,7 +140,7 @@ export async function GET(request: NextRequest) {
   const cached = getCached(limit);
   if (cached) {
     return Response.json({
-      trends: cached.result,
+      ...cached.result,
       cached: true,
       fetched_at: cached.fetchedAt,
     });
@@ -140,16 +149,27 @@ export async function GET(request: NextRequest) {
   try {
     const trendsWithCounts = await fetchTrendsWithCounts();
     const trends = detectTrends(trendsWithCounts, limit);
+    const snapshot = buildTwitterTrendsSnapshot(trends);
     const fetchedAt = new Date().toISOString();
 
     cache.set(limit, {
       fetchedAt,
-      result: trends,
+      result: {
+        trends: snapshot.trends,
+        clusters: snapshot.clusters,
+        trend_count: snapshot.trendCount,
+        cluster_count: snapshot.clusterCount,
+        window_posts: snapshot.windowPosts,
+      },
       ts: Date.now(),
     });
 
     return Response.json({
-      trends,
+      trends: snapshot.trends,
+      clusters: snapshot.clusters,
+      trend_count: snapshot.trendCount,
+      cluster_count: snapshot.clusterCount,
+      window_posts: snapshot.windowPosts,
       cached: false,
       fetched_at: fetchedAt,
     });
@@ -172,8 +192,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const detail =
+      error instanceof Error
+        ? error.message
+        : "Unknown error";
+
+    console.error("twitter-trends route failed", {
+      detail,
+      error,
+      fetchedAt: new Date().toISOString(),
+      limit,
+    });
+
     return Response.json(
-      { error: "Unable to fetch current Twitter trends." },
+      {
+        error: "Unable to fetch current Twitter trends.",
+        detail,
+      },
       { status: 500 },
     );
   }

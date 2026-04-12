@@ -1,25 +1,53 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Hash, RadioTower, WifiOff } from "lucide-react";
 import { BuildProcess } from "@/components/dashboard/BuildProcess";
 import { useTwitterTrends } from "@/hooks/useTwitterTrends";
 import {
+  displayKeyword,
+  findKeywordCluster,
   formatCompactNumber,
   formatFetchedAtLabel,
-  trendSlug,
+  formatPercent,
+  getRelatedKeywordClusters,
 } from "@/lib/twitter-trends";
 import { cn } from "@/lib/utils";
+
+function MetricBlock({
+  label,
+  value,
+  accent = "text-white",
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-white/6 bg-white/[0.015] px-4 py-3">
+      <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
+        {label}
+      </div>
+      <div className={cn("mt-1 text-sm font-semibold", accent)}>{value}</div>
+    </div>
+  );
+}
 
 export default function SpacePage() {
   const params = useParams<{ space: string }>();
   const slug = params.space ?? "";
-  const trendStream = useTwitterTrends({ interval: 45_000, limit: 12 });
-  const selectedTrend =
-    trendStream.trends.find((trend) => trendSlug(trend.trend) === slug) ?? null;
-  const tags = selectedTrend?.representative_hashtags.slice(0, 4) ?? [];
+  const trendStream = useTwitterTrends({ interval: 45_000, limit: 30 });
+  const selectedCluster = useMemo(
+    () => findKeywordCluster(trendStream.clusters, slug),
+    [trendStream.clusters, slug],
+  );
+  const relatedClusters = useMemo(
+    () => getRelatedKeywordClusters(trendStream.clusters, selectedCluster),
+    [trendStream.clusters, selectedCluster],
+  );
 
   return (
     <div className="flex h-screen flex-col overflow-hidden pt-11">
@@ -29,11 +57,11 @@ export default function SpacePage() {
           className="flex items-center gap-1.5 text-zinc-700 transition-colors hover:text-zinc-400"
         >
           <ArrowLeft className="h-3 w-3" />
-          trends
+          clusters
         </Link>
         <span className="text-zinc-800">|</span>
         <span className="truncate text-white/60">
-          {selectedTrend?.trend ?? slug}
+          {selectedCluster ? displayKeyword(selectedCluster.keyword) : slug}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
           {trendStream.connected ? (
@@ -48,97 +76,82 @@ export default function SpacePage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="min-w-0 flex-[3] overflow-y-auto border-r border-white/5">
-          <div className="flex max-w-xl flex-col gap-7 p-8">
+        <div className="min-w-0 flex-[3.2] overflow-y-auto border-r border-white/5">
+          <div className="mx-auto flex max-w-[980px] flex-col gap-6 px-6 py-6">
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.25 }}
+              className="rounded-2xl border border-amber-500/12 bg-[linear-gradient(135deg,rgba(245,158,11,0.08),rgba(12,10,8,0.2)_42%,rgba(255,255,255,0.02))] p-6"
             >
-              <h1 className="text-4xl font-bold tracking-tight text-white">
-                {selectedTrend?.trend ?? "Trend unavailable"}
-              </h1>
-              <p className="mt-1.5 text-sm text-zinc-600">
-                {selectedTrend
-                  ? "Live Twitter trend snapshot pulled from the extraction pipeline."
-                  : "This trend is no longer in the current live window."}
-              </p>
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-amber-500/60">
+                    keyword cluster
+                  </div>
+                  <h1 className="mt-3 truncate text-4xl font-bold tracking-tight text-white">
+                    {selectedCluster
+                      ? displayKeyword(selectedCluster.keyword)
+                      : "Cluster unavailable"}
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                    {selectedCluster
+                      ? `This cluster groups every live trend in the current window that shares the "${selectedCluster.keyword}" keyword signal. Use it to inspect adjacent narratives, hashtag overlap, and total reachable volume before spinning up a build.`
+                      : "This cluster is no longer present in the active live window. The full cluster ledger below is still available."}
+                  </p>
+                </div>
+                {selectedCluster && (
+                  <div className="min-w-[180px] rounded-xl border border-white/8 bg-black/20 p-4">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
+                      window concentration
+                    </div>
+                    <div className="mt-2 text-2xl font-bold text-amber-400">
+                      {formatPercent(selectedCluster.shareOfWindow)}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {formatCompactNumber(selectedCluster.totalPosts)} of {formatCompactNumber(trendStream.windowPosts)} posts/hr
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {selectedCluster && (
+                <div className="mt-6 grid grid-cols-4 gap-3">
+                  <MetricBlock
+                    label="member trends"
+                    value={String(selectedCluster.memberCount)}
+                  />
+                  <MetricBlock
+                    label="cluster volume"
+                    value={`${formatCompactNumber(selectedCluster.totalPosts)}/hr`}
+                    accent="text-amber-400"
+                  />
+                  <MetricBlock
+                    label="lead signal"
+                    value={selectedCluster.leadTrend.trend}
+                  />
+                  <MetricBlock
+                    label="hashtags"
+                    value={String(selectedCluster.hashtags.length)}
+                  />
+                </div>
+              )}
             </motion.div>
 
-            {selectedTrend ? (
-              <>
-                <motion.p
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.08, duration: 0.3 }}
-                  className="text-sm leading-relaxed text-zinc-400"
-                >
-                  This topic is currently surfacing with strong short-term momentum. Use it as a seed for rapid market
-                  briefs, landing pages, or campaign experiments while the attention window is still active.
-                </motion.p>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.16, duration: 0.3 }}
-                  className="rounded-lg border border-amber-500/15 bg-amber-500/[0.03] p-4"
-                >
-                  <div className="mb-2 text-[10px] font-mono uppercase tracking-widest text-amber-500/50">
-                    Live opportunity
+            <section className="rounded-2xl border border-white/6 bg-white/[0.015]">
+              <div className="flex items-center justify-between border-b border-white/6 px-5 py-3">
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
+                    Cluster members
                   </div>
-                  <p className="text-sm text-zinc-400">
-                    Package this trend into a monitoring dashboard, alerting workflow, or lightweight content product
-                    while the conversation velocity is elevated.
-                  </p>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.24, duration: 0.3 }}
-                  className="space-y-4"
-                >
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-800">
-                    Live metrics
+                  <div className="mt-1 text-sm text-zinc-500">
+                    Every live trend currently mapped to this keyword.
                   </div>
-
-                  <div className="flex items-center gap-8 font-mono text-xs">
-                    <div>
-                      <div className="font-bold tabular-nums text-white">
-                        {formatCompactNumber(selectedTrend.post_count)}
-                      </div>
-                      <div className="mt-0.5 text-[10px] text-zinc-700">posts/hr</div>
-                    </div>
-                    <div>
-                      <div className="font-bold tabular-nums text-amber-400">
-                        {formatCompactNumber(selectedTrend.trend_score)}
-                      </div>
-                      <div className="mt-0.5 text-[10px] text-zinc-700">reach</div>
-                    </div>
-                    <div>
-                      <div className="font-bold tabular-nums text-zinc-400">
-                        {tags.length}
-                      </div>
-                      <div className="mt-0.5 text-[10px] text-zinc-700">hashtags</div>
-                    </div>
-                  </div>
-
-                  <div className="h-px w-56 overflow-hidden rounded-full bg-white/5">
-                    <motion.div
-                      className="h-full origin-left rounded-full bg-amber-500"
-                      animate={{
-                        scaleX:
-                          selectedTrend.trend_score > 0 && trendStream.trends[0]
-                            ? Math.max(0.08, selectedTrend.trend_score / trendStream.trends[0].trend_score)
-                            : 0,
-                      }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {tags.length > 0 ? (
-                      tags.map((tag) => (
+                </div>
+                {selectedCluster && (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {selectedCluster.hashtags.length > 0 ? (
+                      selectedCluster.hashtags.map((tag) => (
                         <div
                           key={tag}
                           className="inline-flex items-center gap-1 rounded-full border border-white/8 px-2.5 py-1 text-[10px] font-mono text-zinc-500"
@@ -149,26 +162,116 @@ export default function SpacePage() {
                       ))
                     ) : (
                       <div className="text-xs font-mono text-zinc-700">
-                        No representative hashtags on this trend.
+                        no representative hashtags
                       </div>
                     )}
                   </div>
-                </motion.div>
-              </>
-            ) : (
-              <div className="text-sm text-zinc-500">
-                Return to the dashboard and pick a currently active trend.
+                )}
               </div>
-            )}
+
+              <div className="grid grid-cols-[2rem_1.4fr_6rem_6rem_1fr] gap-4 border-b border-white/6 px-5 py-2 text-[10px] font-mono uppercase tracking-widest text-zinc-700">
+                <span>#</span>
+                <span>Trend</span>
+                <span className="text-right">Posts/hr</span>
+                <span className="text-right">Share</span>
+                <span>Tags</span>
+              </div>
+
+              <div>
+                {selectedCluster ? (
+                  selectedCluster.trends.map((trend, index) => (
+                    <div
+                      key={trend.trend}
+                      className="grid grid-cols-[2rem_1.4fr_6rem_6rem_1fr] gap-4 border-b border-white/4 px-5 py-3 text-sm last:border-b-0"
+                    >
+                      <span className="font-mono text-zinc-800">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="truncate text-white/85">{trend.trend}</span>
+                      <span className="text-right font-mono text-amber-400">
+                        {formatCompactNumber(trend.post_count)}
+                      </span>
+                      <span className="text-right font-mono text-zinc-500">
+                        {formatPercent(
+                          selectedCluster.totalPosts > 0
+                            ? trend.post_count / selectedCluster.totalPosts
+                            : 0,
+                        )}
+                      </span>
+                      <span className="truncate font-mono text-[11px] text-zinc-600">
+                        {trend.representative_hashtags.join(" ") || "derived"}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-5 py-10 text-sm text-zinc-500">
+                    Pick a live cluster from the index below.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/6 bg-white/[0.015]">
+              <div className="flex items-center justify-between border-b border-white/6 px-5 py-3">
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
+                    All live clusters
+                  </div>
+                  <div className="mt-1 text-sm text-zinc-500">
+                    Full cluster index for the current trend window, ordered by overlap first.
+                  </div>
+                </div>
+                <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-zinc-700">
+                  {relatedClusters.length} tracked
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[9rem_5rem_6rem_1fr] gap-4 border-b border-white/6 px-5 py-2 text-[10px] font-mono uppercase tracking-widest text-zinc-700">
+                <span>Cluster</span>
+                <span className="text-right">Members</span>
+                <span className="text-right">Volume</span>
+                <span>Lead trend</span>
+              </div>
+
+              <div>
+                {relatedClusters.map((cluster) => {
+                  const active = cluster.slug === selectedCluster?.slug;
+
+                  return (
+                    <Link
+                      key={cluster.slug}
+                      href={`/dashboard/${cluster.slug}`}
+                      className={cn(
+                        "grid grid-cols-[9rem_5rem_6rem_1fr] gap-4 border-b border-white/4 px-5 py-3 text-sm transition-colors last:border-b-0 hover:bg-white/[0.03]",
+                        active && "bg-amber-500/[0.05]",
+                      )}
+                    >
+                      <span className={cn("font-semibold", active ? "text-amber-400" : "text-white/85")}>
+                        {displayKeyword(cluster.keyword)}
+                      </span>
+                      <span className="text-right font-mono text-zinc-500">
+                        {cluster.memberCount}
+                      </span>
+                      <span className="text-right font-mono text-zinc-400">
+                        {formatCompactNumber(cluster.totalPosts)}
+                      </span>
+                      <span className="truncate text-zinc-500">
+                        {cluster.leadTrend.trend}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
           </div>
         </div>
 
-        <div className="min-w-0 flex-[2] overflow-hidden">
+        <div className="min-w-0 flex-[1.8] overflow-hidden">
           <BuildProcess
             trends={trendStream.trends}
             connected={trendStream.connected}
             isLoading={trendStream.isLoading}
-            selectedTrend={selectedTrend}
+            selectedTrend={selectedCluster?.leadTrend ?? null}
           />
         </div>
       </div>

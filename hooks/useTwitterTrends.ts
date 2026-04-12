@@ -5,8 +5,12 @@ import type { TwitterTrendsResponse, TwitterTrendsState } from "@/lib/twitter-tr
 
 const DEFAULT_STATE: TwitterTrendsState = {
   trends: [],
+  clusters: [],
   cached: false,
   fetchedAt: null,
+  trendCount: 0,
+  clusterCount: 0,
+  windowPosts: 0,
   isLoading: true,
   error: null,
   connected: false,
@@ -49,8 +53,12 @@ export function useTwitterTrends(
         const data = payload as TwitterTrendsResponse;
         setState({
           trends: data.trends,
+          clusters: data.clusters,
           cached: data.cached,
           fetchedAt: data.fetched_at,
+          trendCount: data.trend_count,
+          clusterCount: data.cluster_count,
+          windowPosts: data.window_posts,
           isLoading: false,
           error: null,
           connected: true,
