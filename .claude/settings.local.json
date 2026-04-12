@@ -10,7 +10,12 @@
       "Bash(npm run:*)",
       "Bash(npm install:*)",
       "WebSearch",
-      "WebFetch(domain:docs.x.com)"
+      "WebFetch(domain:docs.x.com)",
+      "Bash(cp -r bullishforge/.gitignore .)",
+      "Bash(cp -r bullishforge/app .)",
+      "Bash(cp -r bullishforge/components .)",
+      "Bash(cp -r bullishforge/hooks .)",
+      "Bash(cp -r bullishforge/lib .)"
     ]
   }
 }
