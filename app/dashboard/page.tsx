@@ -1,8 +1,7 @@
 "use client";
 
-import { SignalFeed } from "@/components/dashboard/SignalFeed";
-import { ForgeCanvas } from "@/components/dashboard/ForgeCanvas";
-import { AlphaMetrics } from "@/components/dashboard/AlphaMetrics";
+import { HotTopics } from "@/components/dashboard/HotTopics";
+import { BuildProcess } from "@/components/dashboard/BuildProcess";
 import { useSentiment } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
 
@@ -40,14 +39,11 @@ export default function DashboardPage() {
     <div className="flex flex-col h-screen overflow-hidden pt-11">
       <Banner />
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-64 flex-shrink-0 border-r border-white/5 overflow-hidden">
-          <SignalFeed />
+        <div className="flex-[3] min-w-0 border-r border-white/5 overflow-hidden">
+          <HotTopics />
         </div>
-        <div className="flex-1 overflow-hidden min-w-0">
-          <ForgeCanvas />
-        </div>
-        <div className="w-56 flex-shrink-0 border-l border-white/5 overflow-hidden">
-          <AlphaMetrics />
+        <div className="flex-[2] min-w-0 overflow-hidden">
+          <BuildProcess />
         </div>
       </div>
     </div>
