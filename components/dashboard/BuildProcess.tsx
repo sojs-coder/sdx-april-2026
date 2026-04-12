@@ -44,18 +44,18 @@ function makeLogLine(step: StepId, ticker: string, score: number, source: string
 function StepDot({ status }: { status: "done" | "active" | "pending" }) {
   if (status === "done")
     return (
-      <div className="w-4 h-4 rounded-full bg-amber-500/20 flex items-center justify-center">
-        <Check className="w-2.5 h-2.5 text-amber-500" />
+      <div className="w-4 h-4 rounded-full bg-amber-500/20 flex items-center justify-center" role="img" aria-label="Complete">
+        <Check className="w-2.5 h-2.5 text-amber-500" aria-hidden="true" />
       </div>
     );
   if (status === "active")
     return (
-      <div className="w-4 h-4 rounded-full border border-amber-500/60 flex items-center justify-center">
-        <Loader className="w-2.5 h-2.5 text-amber-500 animate-spin" />
+      <div className="w-4 h-4 rounded-full border border-amber-500/60 flex items-center justify-center" role="status" aria-label="In progress">
+        <Loader className="w-2.5 h-2.5 text-amber-500 animate-spin" aria-hidden="true" />
       </div>
     );
   return (
-    <div className="w-4 h-4 rounded-full border border-white/10" />
+    <div className="w-4 h-4 rounded-full border border-white/10" role="img" aria-label="Pending" />
   );
 }
 
@@ -65,9 +65,9 @@ function StepProgress({ duration, active }: { duration: number; active: boolean 
   return (
     <div className="mt-1.5 h-px bg-white/6 rounded-full overflow-hidden w-full">
       <motion.div
-        className="h-full bg-amber-500/60 rounded-full"
-        initial={{ width: "0%" }}
-        animate={{ width: "100%" }}
+        className="h-full bg-amber-500/60 rounded-full origin-left"
+        initial={{ scaleX: 0 }}
+        animate={{ scaleX: 1 }}
         transition={{ duration: duration / 1000, ease: "linear" }}
       />
     </div>
@@ -83,8 +83,8 @@ export function BuildProcess() {
   const [log, setLog] = useState<LogLine[]>([]);
   const [buildKey, setBuildKey] = useState(0); // restart trigger
   const prevTickerRef = useRef<string>("");
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const runningRef = useRef(false);
+  const generationRef = useRef(0); // incremented each pipeline run; callbacks bail if stale
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
 
   const topSignal = signals[0];
@@ -101,8 +101,14 @@ export function BuildProcess() {
   // Run the pipeline whenever buildKey increments
   useEffect(() => {
     if (!topSignal) return;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    runningRef.current = true;
+
+    // Cancel every pending timer from the previous run
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+
+    // Capture this run's generation; callbacks from older runs will bail
+    const gen = ++generationRef.current;
+
     setActiveStepIdx(0);
     setDoneSteps(new Set());
     setLog([]);
@@ -110,8 +116,8 @@ export function BuildProcess() {
     let delay = 0;
     STEPS.forEach((step, idx) => {
       // Add log line at step start
-      timerRef.current = setTimeout(() => {
-        if (!runningRef.current) return;
+      const t1 = setTimeout(() => {
+        if (generationRef.current !== gen) return;
         setActiveStepIdx(idx);
         const line: LogLine = {
           id: `${buildKey}-${step.id}`,
@@ -121,21 +127,23 @@ export function BuildProcess() {
         };
         setLog((prev) => [...prev.slice(-20), line]);
       }, delay);
+      timersRef.current.push(t1);
 
       // Mark done after duration
       if (step.duration > 0) {
         delay += step.duration;
         const finishDelay = delay;
-        timerRef.current = setTimeout(() => {
-          if (!runningRef.current) return;
+        const t2 = setTimeout(() => {
+          if (generationRef.current !== gen) return;
           setDoneSteps((prev) => new Set([...prev, step.id]));
         }, finishDelay);
+        timersRef.current.push(t2);
       }
     });
 
     return () => {
-      runningRef.current = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildKey]);
@@ -217,7 +225,7 @@ export function BuildProcess() {
             transition={{ duration: 0.3 }}
             className="flex-shrink-0 p-4 border-t border-white/5"
           >
-            <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 text-[#0C0A08] text-sm font-semibold hover:bg-amber-400 transition-colors">
+            <button type="button" className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 text-[#0C0A08] text-sm font-semibold hover:bg-amber-400 transition-colors">
               <ExternalLink className="w-3.5 h-3.5" />
               Deploy {topSignal.ticker} app
             </button>

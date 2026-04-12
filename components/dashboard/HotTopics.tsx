@@ -49,8 +49,8 @@ function HeatBar({ heat, direction }: { heat: number; direction: Topic["directio
   return (
     <div className="w-24 h-1 bg-white/5 rounded-full overflow-hidden">
       <motion.div
-        className={cn("h-full rounded-full", fill)}
-        animate={{ width: `${heat * 100}%` }}
+        className={cn("h-full w-full rounded-full origin-left", fill)}
+        animate={{ scaleX: heat }}
         transition={{ duration: 0.6, ease: "easeOut" }}
       />
     </div>
