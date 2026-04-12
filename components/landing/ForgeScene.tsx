@@ -5,79 +5,48 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 
-// ─── Stage metadata ───────────────────────────────────────────────
+// ─── Stage metadata (the 5 Platonic solids in ascending complexity) ──
 const STAGES = [
-  { desc: "01 / spark"     },
-  { desc: "02 / structure" },
-  { desc: "03 / prototype" },
-  { desc: "04 / system"    },
-  { desc: "05 / forge"     },
+  { desc: "01 / tetrahedron"  },  //  4 faces
+  { desc: "02 / hexahedron"   },  //  6 faces
+  { desc: "03 / octahedron"   },  //  8 faces
+  { desc: "04 / dodecahedron" },  // 12 faces
+  { desc: "05 / icosahedron"  },  // 20 faces
 ] as const;
 
-// Rotation speed (rad/s) per stage — fast for early chaos, slow for final complexity
-const ROT_SPEEDS = [0.18, 0.55, 0.42, 0.38, 0.26];
+// Rotation slows as complexity increases — let the shape speak.
+const ROT_SPEEDS = [0.46, 0.40, 0.38, 0.34, 0.28];
 const CYCLE_MS   = 4400;
 const FADE_MS    = 750;
 
-// ─── Stage 0: Spark ──────────────────────────────────────────────
-// A raw, pulsing point of light. The idea before it has form.
-function Spark() {
-  const coreRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    if (!coreRef.current) return;
-    const mat = coreRef.current.material as THREE.MeshStandardMaterial;
-    mat.emissiveIntensity = 2.8 + Math.sin(clock.elapsedTime * 3.4) * 1.8;
-  });
+// ─── Shared renderer: wireframe + translucent faces ───────────────
+// faceOpacity and emissiveIntensity increase per stage so the solid
+// progressively "materialises" from pure skeleton to glowing crystal.
+function PlatonicModel({
+  solidGeo,
+  faceOpacity,
+  emissiveIntensity,
+}: {
+  solidGeo: THREE.BufferGeometry;
+  faceOpacity: number;
+  emissiveIntensity: number;
+}) {
+  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(solidGeo), [solidGeo]);
+  useEffect(() => () => edgesGeo.dispose(), [edgesGeo]);
+
   return (
     <group>
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[0.3, 32, 32]} />
-        <meshStandardMaterial color="#F59E0B" emissive="#F59E0B" emissiveIntensity={3} />
-      </mesh>
-      {/* Inner halo */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.62, 0.012, 8, 64]} />
-        <meshStandardMaterial color="#F59E0B" emissive="#F59E0B" emissiveIntensity={1.8} transparent opacity={0.55} />
-      </mesh>
-      {/* Outer halo, tilted */}
-      <mesh rotation={[Math.PI / 3, 0.4, 0]}>
-        <torusGeometry args={[0.84, 0.008, 8, 64]} />
-        <meshStandardMaterial color="#FBBF24" emissive="#FBBF24" emissiveIntensity={0.9} transparent opacity={0.28} />
-      </mesh>
-    </group>
-  );
-}
-
-// ─── Stage 1: Structure ───────────────────────────────────────────
-// First dimensionality — pure edge geometry, no faces yet.
-function Structure() {
-  const geo = useMemo(() => new THREE.EdgesGeometry(new THREE.OctahedronGeometry(1.3, 0)), []);
-  useEffect(() => () => geo.dispose(), [geo]);
-  return (
-    <lineSegments geometry={geo}>
-      <lineBasicMaterial color="#F59E0B" />
-    </lineSegments>
-  );
-}
-
-// ─── Stage 2: Prototype ───────────────────────────────────────────
-// Many faces, semi-transparent fill — the crystal stage.
-function Prototype() {
-  const solidGeo = useMemo(() => new THREE.IcosahedronGeometry(1.1, 1), []);
-  const edgesGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(1.1, 1)), []);
-  useEffect(() => () => { solidGeo.dispose(); edgesGeo.dispose(); }, [solidGeo, edgesGeo]);
-  return (
-    <group>
-      <mesh geometry={solidGeo}>
-        <meshStandardMaterial
-          color="#F59E0B"
-          emissive="#F59E0B"
-          emissiveIntensity={0.12}
-          transparent
-          opacity={0.14}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+      {faceOpacity > 0 && (
+        <mesh geometry={solidGeo}>
+          <meshStandardMaterial
+            color="#F59E0B"
+            emissive="#F59E0B"
+            emissiveIntensity={emissiveIntensity}
+            transparent
+            opacity={faceOpacity}
+          />
+        </mesh>
+      )}
       <lineSegments geometry={edgesGeo}>
         <lineBasicMaterial color="#FBBF24" />
       </lineSegments>
@@ -85,41 +54,42 @@ function Prototype() {
   );
 }
 
-// ─── Stage 3: System ─────────────────────────────────────────────
-// A torus — a loop, a cycle, a complete system with flow.
-function System() {
-  return (
-    <mesh>
-      <torusGeometry args={[0.9, 0.28, 10, 52]} />
-      <meshStandardMaterial
-        color="#F59E0B"
-        emissive="#F59E0B"
-        emissiveIntensity={0.42}
-        metalness={0.55}
-        roughness={0.32}
-      />
-    </mesh>
-  );
+// ─── Stage 0: Tetrahedron — 4 faces, bare skeleton ───────────────
+function Stage0() {
+  const geo = useMemo(() => new THREE.TetrahedronGeometry(1.3, 0), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <PlatonicModel solidGeo={geo} faceOpacity={0} emissiveIntensity={0} />;
 }
 
-// ─── Stage 4: Forge ───────────────────────────────────────────────
-// Torus knot — intricate, interdependent, the finished creation.
-function Forge() {
-  return (
-    <mesh>
-      <torusKnotGeometry args={[0.7, 0.2, 120, 14, 2, 3]} />
-      <meshStandardMaterial
-        color="#F59E0B"
-        emissive="#F59E0B"
-        emissiveIntensity={0.5}
-        metalness={0.42}
-        roughness={0.28}
-      />
-    </mesh>
-  );
+// ─── Stage 1: Hexahedron — 6 faces, hint of fill ─────────────────
+function Stage1() {
+  const geo = useMemo(() => new THREE.BoxGeometry(1.44, 1.44, 1.44), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <PlatonicModel solidGeo={geo} faceOpacity={0.07} emissiveIntensity={0.07} />;
 }
 
-// ─── Scene (inside Canvas) ───────────────────────────────────────
+// ─── Stage 2: Octahedron — 8 faces, clearly visible fill ─────────
+function Stage2() {
+  const geo = useMemo(() => new THREE.OctahedronGeometry(1.25, 0), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <PlatonicModel solidGeo={geo} faceOpacity={0.18} emissiveIntensity={0.16} />;
+}
+
+// ─── Stage 3: Dodecahedron — 12 pentagonal faces, solid-feeling ──
+function Stage3() {
+  const geo = useMemo(() => new THREE.DodecahedronGeometry(1.05, 0), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <PlatonicModel solidGeo={geo} faceOpacity={0.30} emissiveIntensity={0.26} />;
+}
+
+// ─── Stage 4: Icosahedron — 20 faces, glowing crystal ────────────
+function Stage4() {
+  const geo = useMemo(() => new THREE.IcosahedronGeometry(1.12, 0), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <PlatonicModel solidGeo={geo} faceOpacity={0.48} emissiveIntensity={0.40} />;
+}
+
+// ─── Scene (lives inside Canvas) ─────────────────────────────────
 function Scene({
   intensity,
   stage,
@@ -127,29 +97,25 @@ function Scene({
 }: {
   intensity: number;
   stage: number;
-  exitingRef: React.RefObject<boolean>;
+  exitingRef: { current: boolean };
 }) {
-  const groupRef  = useRef<THREE.Group>(null);
-  const scaleRef  = useRef(0);   // driven entirely by useFrame
-  const timeRef   = useRef(0);
+  const groupRef = useRef<THREE.Group>(null);
+  const scaleRef = useRef(0);
+  const timeRef  = useRef(0);
 
-  // Reset scale to 0 each time a new stage mounts (before browser paints)
-  useLayoutEffect(() => {
-    scaleRef.current = 0;
-  }, [stage]);
+  // Each new stage starts at scale 0 so it grows in cleanly.
+  useLayoutEffect(() => { scaleRef.current = 0; }, [stage]);
 
   useFrame((_, delta) => {
     timeRef.current += delta;
-
     const target = exitingRef.current ? 0 : 1;
     scaleRef.current += (target - scaleRef.current) * Math.min(1, delta * 7);
 
     const group = groupRef.current;
     if (!group) return;
-
     group.scale.setScalar(Math.max(0.001, scaleRef.current));
     group.rotation.y += delta * ROT_SPEEDS[stage];
-    group.rotation.x = Math.sin(timeRef.current * 0.28) * 0.1;
+    group.rotation.x = Math.sin(timeRef.current * 0.28) * 0.08;
   });
 
   return (
@@ -159,38 +125,33 @@ function Scene({
       <pointLight color="#FDE68A" intensity={0.6} position={[0, 3.5, 1]} distance={7} decay={2.5} />
 
       <group ref={groupRef}>
-        {stage === 0 && <Spark />}
-        {stage === 1 && <Structure />}
-        {stage === 2 && <Prototype />}
-        {stage === 3 && <System />}
-        {stage === 4 && <Forge />}
+        {stage === 0 && <Stage0 />}
+        {stage === 1 && <Stage1 />}
+        {stage === 2 && <Stage2 />}
+        {stage === 3 && <Stage3 />}
+        {stage === 4 && <Stage4 />}
       </group>
 
-      <Sparkles
-        count={35}
-        size={0.42}
-        speed={0.09}
-        opacity={0.13}
-        color="#F59E0B"
-        scale={5.5}
-        noise={0.3}
-      />
+      <Sparkles count={35} size={0.42} speed={0.09} opacity={0.13} color="#F59E0B" scale={5.5} noise={0.3} />
     </>
   );
 }
 
-// ─── Export ──────────────────────────────────────────────────────
+// ─── Export ───────────────────────────────────────────────────────
 export function ForgeScene({ intensity = 0.5 }: { intensity?: number }) {
-  const [stage, setStage]       = useState(0);
-  const exitingRef              = useRef(false);
+  const [stage, setStage]     = useState(0);
+  const [exiting, setExiting] = useState(false);
+  const exitingRef            = useRef(false);
 
-  // Cycle through stages; mutation of exitingRef is safe (read by useFrame, not React)
+  // Ref mirrors state so useFrame can read it without closure staleness.
+  useEffect(() => { exitingRef.current = exiting; }, [exiting]);
+
   useEffect(() => {
     const id = setInterval(() => {
-      exitingRef.current = true;
+      setExiting(true);
       setTimeout(() => {
         setStage(s => (s + 1) % STAGES.length);
-        exitingRef.current = false;
+        setExiting(false);
       }, FADE_MS);
     }, CYCLE_MS);
     return () => clearInterval(id);
@@ -199,7 +160,7 @@ export function ForgeScene({ intensity = 0.5 }: { intensity?: number }) {
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <Canvas
-        camera={{ position: [0, 0.5, 4.6], fov: 44 }}
+        camera={{ position: [0, 0.6, 4.8], fov: 42 }}
         gl={{ antialias: true, alpha: true }}
         style={{ background: "transparent" }}
         dpr={[1, 2]}
@@ -209,7 +170,7 @@ export function ForgeScene({ intensity = 0.5 }: { intensity?: number }) {
         </Suspense>
       </Canvas>
 
-      {/* Stage label — HTML overlay, no drei Html needed */}
+      {/* Stage label — plain HTML overlay, no drei <Html> needed */}
       <div
         style={{
           position: "absolute",
@@ -229,6 +190,8 @@ export function ForgeScene({ intensity = 0.5 }: { intensity?: number }) {
             letterSpacing: "0.22em",
             textTransform: "uppercase",
             whiteSpace: "nowrap",
+            opacity: exiting ? 0 : 1,
+            transition: "opacity 350ms ease",
           }}
         >
           {STAGES[stage].desc}
