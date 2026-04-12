@@ -29,6 +29,23 @@ function apiCall(url, params) {
  * Returns array of { trend_name, tweet_count } sorted by tweet_count descending.
  */
 async function fetchTrendsWithCounts() {
+  if (process.env.MOCK_TWITTER === '1') {
+    return [
+      { trend_name: '#Alpha', tweet_count: 500 },
+      { trend_name: 'Breaking', tweet_count: 420 },
+      { trend_name: '#Beta', tweet_count: 300 },
+      { trend_name: 'Sports', tweet_count: 200 },
+      { trend_name: '#Gamma', tweet_count: 150 },
+      { trend_name: 'Tech', tweet_count: 120 },
+      { trend_name: '#Delta', tweet_count: 90 },
+      { trend_name: 'Music', tweet_count: 60 },
+      { trend_name: '#Epsilon', tweet_count: 45 },
+      { trend_name: 'Movies', tweet_count: 30 },
+      { trend_name: '#Zeta', tweet_count: 25 },
+      { trend_name: 'Science', tweet_count: 20 },
+    ];
+  }
+
   // Step 1: get trending topic names
   let trendsResp;
   try {

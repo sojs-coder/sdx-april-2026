@@ -2,8 +2,9 @@
 
 require("dotenv").config();
 
-if (!process.env.TOKEN) {
-    console.error("ERROR: TOKEN is not set in .env");
+const useMock = process.env.MOCK_TWITTER === "1";
+if (!process.env.TOKEN && !useMock) {
+    console.error("ERROR: TOKEN is not set in .env (or set MOCK_TWITTER=1 for local dev)");
     process.exit(1);
 }
 
@@ -128,7 +129,7 @@ app.use((err, req, res, _next) => {
         if (err.retryAfter) body.retry_after = err.retryAfter;
         return res.status(429).json(body);
     }
-console.error("Unhandled error:", err);
+    console.error("Unhandled error:", err);
     return res.status(500).json({ error: "Internal server error" });
 });
 
@@ -138,4 +139,7 @@ console.error("Unhandled error:", err);
 app.listen(PORT, () => {
     console.log(`Twitter trend server running on http://localhost:${PORT}`);
     console.log(`Example: http://localhost:${PORT}/?q=10`);
+    if (useMock) {
+        console.log("MOCK_TWITTER=1 — using synthetic trends (no API calls)");
+    }
 });
