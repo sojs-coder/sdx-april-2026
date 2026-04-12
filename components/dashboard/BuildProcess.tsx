@@ -75,8 +75,8 @@ function StepProgress({ duration, active }: { duration: number; active: boolean 
 }
 
 // ─── Main component ──────────────────────────────────────────────
-export function BuildProcess() {
-  const { signals, metrics } = useSentiment({ interval: 2200 });
+export function BuildProcess({ forceTicker }: { forceTicker?: string } = {}) {
+  const { signals } = useSentiment({ interval: 2200 });
 
   const [activeStepIdx, setActiveStepIdx] = useState(0);
   const [doneSteps, setDoneSteps] = useState<Set<StepId>>(new Set());
@@ -87,20 +87,25 @@ export function BuildProcess() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  const topSignal = signals[0];
+  // Resolve the ticker driving this pipeline.
+  // forceTicker pins it to a specific idea; otherwise follows the live top signal.
+  const activeTicker = forceTicker ?? signals[0]?.ticker ?? "";
+  const tickerSignal  = signals.find(s => s.ticker === activeTicker);
+  const activeScore   = tickerSignal?.score  ?? 0.65;
+  const activeSource  = tickerSignal?.source ?? "Signal Stream";
 
-  // Restart pipeline when dominant ticker changes
+  // Restart pipeline when the active ticker changes
   useEffect(() => {
-    if (!topSignal) return;
-    if (topSignal.ticker !== prevTickerRef.current) {
-      prevTickerRef.current = topSignal.ticker;
+    if (!activeTicker) return;
+    if (activeTicker !== prevTickerRef.current) {
+      prevTickerRef.current = activeTicker;
       setBuildKey((k) => k + 1);
     }
-  }, [topSignal]);
+  }, [activeTicker]);
 
   // Run the pipeline whenever buildKey increments
   useEffect(() => {
-    if (!topSignal) return;
+    if (!activeTicker) return;
 
     // Cancel every pending timer from the previous run
     timersRef.current.forEach(clearTimeout);
@@ -108,6 +113,11 @@ export function BuildProcess() {
 
     // Capture this run's generation; callbacks from older runs will bail
     const gen = ++generationRef.current;
+
+    // Snapshot signal values at pipeline-start time
+    const ticker = activeTicker;
+    const score  = activeScore;
+    const source = activeSource;
 
     setActiveStepIdx(0);
     setDoneSteps(new Set());
@@ -122,7 +132,7 @@ export function BuildProcess() {
         const line: LogLine = {
           id: `${buildKey}-${step.id}`,
           step: step.id,
-          text: makeLogLine(step.id, topSignal.ticker, topSignal.score, topSignal.source),
+          text: makeLogLine(step.id, ticker, score, source),
           ts: Date.now(),
         };
         setLog((prev) => [...prev.slice(-20), line]);
@@ -217,7 +227,7 @@ export function BuildProcess() {
 
       {/* Deploy CTA — only shows when pipeline is complete */}
       <AnimatePresence>
-        {isReady && topSignal && (
+        {isReady && activeTicker && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -227,7 +237,7 @@ export function BuildProcess() {
           >
             <button type="button" className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-500 text-[#0C0A08] text-sm font-semibold hover:bg-amber-400 transition-colors">
               <ExternalLink className="w-3.5 h-3.5" />
-              Deploy {topSignal.ticker} app
+              Deploy {activeTicker} app
             </button>
           </motion.div>
         )}

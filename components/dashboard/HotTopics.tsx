@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { useSentiment } from "@/hooks/useSentiment";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown } from "lucide-react";
@@ -64,6 +65,7 @@ function TopicRow({ topic, rank }: { topic: Topic; rank: number }) {
   const Icon = isBull ? TrendingUp : isBear ? TrendingDown : null;
 
   return (
+    <Link href={`/dashboard/${topic.ticker.toLowerCase()}`} className="block">
     <motion.div
       layout
       initial={{ opacity: 0, y: 6 }}
@@ -71,8 +73,8 @@ function TopicRow({ topic, rank }: { topic: Topic; rank: number }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
       className={cn(
-        "group grid items-center gap-4 px-5 py-3.5 transition-colors",
-        "hover:bg-white/3 border-b border-white/4",
+        "group grid items-center gap-4 px-5 py-3.5 transition-colors cursor-pointer",
+        "hover:bg-white/[0.04] border-b border-white/4",
         rank === 1 && "bg-amber-500/4"
       )}
       style={{ gridTemplateColumns: "2rem 5rem 1fr auto auto" }}
@@ -107,6 +109,7 @@ function TopicRow({ topic, rank }: { topic: Topic; rank: number }) {
         {topic.count}<span className="text-zinc-800 ml-0.5">sig</span>
       </span>
     </motion.div>
+    </Link>
   );
 }
 
