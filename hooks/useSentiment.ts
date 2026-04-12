@@ -26,29 +26,29 @@ export interface SentimentMetrics {
   pulseIntensity: number; // 0–1, drives animation amplitude
 }
 
-const TICKERS = ["BTC", "ETH", "SOL", "NVDA", "AAPL", "TSLA", "MSFT", "META", "FORGE", "ARB"];
-const SOURCES = ["Reddit/r/wallstreetbets", "Twitter/X", "Discord Signal", "Telegram Alpha", "Dark Pool", "Options Flow", "Whale Alert", "On-Chain Metric"];
+const TICKERS = ["AI", "HEALTH", "CLIMATE", "FINTECH", "EDTECH", "GAMING", "CREATOR", "WEB3", "DEVTOOLS", "SPATIAL"];
+const SOURCES = ["Hacker News", "Twitter/X", "Product Hunt", "LinkedIn Signal", "GitHub Trending", "Discord Alpha", "Reddit Thread", "Newsletter Drop"];
 const MESSAGES = {
   bullish: [
-    "Massive accumulation detected in whale wallets",
-    "Options chain showing unusual call volume",
-    "RSI breakout confirmed on 4H timeframe",
-    "Sentiment inflection point — smart money buying",
-    "Volume spike +340% above 30-day average",
-    "Institutional accumulation phase detected",
-    "Golden cross forming on daily chart",
+    "Builder convergence accelerating in this space",
+    "Search interest spiking — 340% above baseline",
+    "Multiple funded teams validating the idea",
+    "Community momentum at inflection point",
+    "Open source activity surging fast",
+    "Early adopter excitement compounding",
+    "Founder attention at all-time high",
   ],
   bearish: [
-    "Distribution pattern emerging — proceed with caution",
-    "Whale wallets showing significant net outflows",
-    "Put/Call ratio spiking — fear in the market",
-    "Macro headwinds — risk-off sentiment spreading",
-    "Death cross approaching on 4H",
+    "Market saturation signals emerging",
+    "Builder attention shifting to adjacent spaces",
+    "Early movers showing retention headwinds",
+    "Funding interest cooling noticeably",
+    "Competition consolidating — tighter entry window",
   ],
   neutral: [
-    "Consolidating in key range — watching for breakout",
-    "Mixed signals — await confirmation",
-    "Low-conviction environment, reduce position size",
+    "Idea space in exploration phase",
+    "Mixed signals — await stronger conviction",
+    "Low-activity window — opportunity still possible",
   ],
 };
 

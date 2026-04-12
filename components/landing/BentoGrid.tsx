@@ -33,7 +33,7 @@ function MiniChart({ data }: { data: { score: number }[] }) {
 
 const FEATURES = [
   { icon: Zap,    title: "Instant generation",    body: "Signal to scaffold in under 3s.",   accent: "#F59E0B" },
-  { icon: Globe,  title: "Multi-source",           body: "Reddit, X, Discord, on-chain.",     accent: "#FBBF24" },
+  { icon: Globe,  title: "Multi-source",           body: "HN, X, Discord, GitHub Trends.",   accent: "#FBBF24" },
   { icon: Lock,   title: "Non-custodial",          body: "Your signals stay yours.",           accent: "#D97706" },
   { icon: Rocket, title: "One-click deploy",       body: "Vercel, Netlify, or self-host.",    accent: "#F59E0B" },
 ];
@@ -73,8 +73,8 @@ export function BentoGrid() {
 
           <div className="space-y-2">
             {[
-              { label: "Bull", value: metrics.bullishCount, color: "#F59E0B" },
-              { label: "Bear", value: metrics.bearishCount, color: "#EF4444" },
+              { label: "Rise", value: metrics.bullishCount, color: "#F59E0B" },
+              { label: "Cool", value: metrics.bearishCount, color: "#EF4444" },
             ].map((bar) => (
               <div key={bar.label} className="flex items-center gap-2">
                 <span className="text-[10px] font-mono text-zinc-700 w-6">{bar.label}</span>

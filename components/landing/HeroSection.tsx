@@ -38,12 +38,12 @@ export function HeroSection() {
 
   const sentimentLabel =
     metrics.overallScore > 0.2
-      ? "EXTREME BULL"
+      ? "SURGING"
       : metrics.overallScore > 0
-      ? "BULLISH"
+      ? "RISING"
       : metrics.overallScore < -0.2
-      ? "EXTREME BEAR"
-      : "NEUTRAL";
+      ? "FADING"
+      : "STEADY";
 
   return (
     <section className="relative min-h-screen flex items-center px-4 pt-16 pb-12 overflow-hidden">
@@ -80,7 +80,7 @@ export function HeroSection() {
             transition={{ delay: 0.15, duration: 0.5 }}
             className="text-base text-zinc-500 max-w-sm leading-relaxed"
           >
-            Real-time signal aggregation that turns bullish momentum into deployable apps.
+            Real-time idea momentum that turns rising signals into deployed apps.
           </motion.p>
 
           <motion.div
@@ -90,8 +90,8 @@ export function HeroSection() {
             className="flex items-center gap-5"
           >
             {[
-              { label: "Bullish", value: metrics.bullishCount, color: "text-amber-400" },
-              { label: "Total", value: metrics.bullishCount + metrics.bearishCount + metrics.neutralCount, color: "text-white" },
+              { label: "Rising", value: metrics.bullishCount, color: "text-amber-400" },
+              { label: "Total",  value: metrics.bullishCount + metrics.bearishCount + metrics.neutralCount, color: "text-white" },
             ].map((s) => (
               <div key={s.label}>
                 <div className={cn("text-2xl font-bold font-mono tabular-nums", s.color)}>

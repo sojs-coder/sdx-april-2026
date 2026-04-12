@@ -28,15 +28,15 @@ interface LogLine {
 function makeLogLine(step: StepId, ticker: string, score: number, source: string): string {
   const s = score > 0 ? `+${(score * 100).toFixed(0)}` : (score * 100).toFixed(0);
   switch (step) {
-    case "capture":   return `[signal] ${ticker} ${s}% · ${source}`;
+    case "capture":   return `[idea]   ${ticker} ${s}% · ${source}`;
     case "classify":  return score > 0.2
-      ? `[intent] bullish momentum · high confidence`
+      ? `[intent] rising momentum · high confidence`
       : score > 0
-      ? `[intent] bullish signal · medium confidence`
-      : `[intent] bearish signal · detected`;
+      ? `[intent] rising signal · medium confidence`
+      : `[intent] cooling signal · detected`;
     case "scaffold":  return `[forge]  Next.js · ${Math.floor(Math.random() * 400 + 600)} lines`;
     case "bundle":    return `[build]  compiled in ${(Math.random() * 1.8 + 1.2).toFixed(1)}s · 0 errors`;
-    case "ready":     return `[ready]  ${ticker.toLowerCase()}-app.vercel.app`;
+    case "ready":     return `[ready]  ${ticker.toLowerCase()}.app.vercel.app`;
   }
 }
 

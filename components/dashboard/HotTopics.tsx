@@ -121,7 +121,7 @@ export function HotTopics() {
         style={{ gridTemplateColumns: "2rem 5rem 1fr auto auto" }}
       >
         <span className="text-[10px] font-mono text-zinc-800">#</span>
-        <span className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">Ticker</span>
+        <span className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">Space</span>
         <span className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">Heat</span>
         <span className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest">Score</span>
         <span className="text-[10px] font-mono text-zinc-700 uppercase tracking-widest text-right">Vol</span>

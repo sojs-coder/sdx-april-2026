@@ -10,10 +10,10 @@ function Banner() {
   const isBull = metrics.overallScore > 0.05;
   const isBear = metrics.overallScore < -0.05;
   const label =
-    metrics.overallScore > 0.3 ? "EXTREME BULL" :
-    isBull ? "BULLISH" :
-    metrics.overallScore < -0.3 ? "EXTREME BEAR" :
-    isBear ? "BEARISH" : "NEUTRAL";
+    metrics.overallScore > 0.3 ? "SURGING" :
+    isBull ? "RISING" :
+    metrics.overallScore < -0.3 ? "FADING" :
+    isBear ? "COOLING" : "STEADY";
   const color = isBull ? "text-amber-400" : isBear ? "text-red-400" : "text-zinc-600";
   const dot   = isBull ? "bg-amber-500"  : isBear ? "bg-red-500"   : "bg-zinc-700";
 
