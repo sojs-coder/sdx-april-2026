@@ -1,9 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Hash, RadioTower, WifiOff } from "lucide-react";
 import type { TwitterTrend } from "@/lib/twitter-trends";
-import { formatCompactNumber, formatFetchedAtLabel } from "@/lib/twitter-trends";
+import {
+  formatCompactNumber,
+  formatFetchedAtLabel,
+  trendSlug,
+} from "@/lib/twitter-trends";
 import { cn } from "@/lib/utils";
 
 function HeatBar({ score, maxScore }: { score: number; maxScore: number }) {
@@ -32,61 +37,63 @@ function TopicRow({
   const tags = trend.representative_hashtags.slice(0, 2);
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
-      className={cn(
-        "group grid items-center gap-4 border-b border-white/4 px-5 py-3.5 transition-colors",
-        "hover:bg-white/3",
-        rank === 1 && "bg-amber-500/4",
-      )}
-      style={{ gridTemplateColumns: "2rem 7rem 1fr auto auto" }}
-    >
-      <span
+    <Link href={`/dashboard/${trendSlug(trend.trend)}`} className="block">
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.25 }}
         className={cn(
-          "text-sm font-mono font-bold tabular-nums",
-          rank === 1 ? "text-amber-500" : rank <= 3 ? "text-amber-500/50" : "text-zinc-800",
+          "group grid cursor-pointer items-center gap-4 border-b border-white/4 px-5 py-3.5 transition-colors",
+          "hover:bg-white/[0.04]",
+          rank === 1 && "bg-amber-500/4",
         )}
+        style={{ gridTemplateColumns: "2rem 7rem 1fr auto auto" }}
       >
-        {String(rank).padStart(2, "0")}
-      </span>
-
-      <span
-        className={cn(
-          "truncate text-sm font-bold tracking-wide",
-          rank === 1 ? "text-white" : "text-white/80",
-        )}
-        title={trend.trend}
-      >
-        {trend.trend}
-      </span>
-
-      <div className="flex min-w-0 items-center gap-3">
-        <HeatBar score={trend.trend_score} maxScore={maxScore} />
-        <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-mono text-zinc-700">
-          {tags.length > 0 ? (
-            <>
-              <Hash className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{tags.join(" ")}</span>
-            </>
-          ) : (
-            <span className="truncate text-zinc-800">keyword cluster</span>
+        <span
+          className={cn(
+            "text-sm font-mono font-bold tabular-nums",
+            rank === 1 ? "text-amber-500" : rank <= 3 ? "text-amber-500/50" : "text-zinc-800",
           )}
+        >
+          {String(rank).padStart(2, "0")}
+        </span>
+
+        <span
+          className={cn(
+            "truncate text-sm font-bold tracking-wide",
+            rank === 1 ? "text-white" : "text-white/80",
+          )}
+          title={trend.trend}
+        >
+          {trend.trend}
+        </span>
+
+        <div className="flex min-w-0 items-center gap-3">
+          <HeatBar score={trend.trend_score} maxScore={maxScore} />
+          <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-mono text-zinc-700">
+            {tags.length > 0 ? (
+              <>
+                <Hash className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{tags.join(" ")}</span>
+              </>
+            ) : (
+              <span className="truncate text-zinc-800">keyword cluster</span>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="text-sm font-semibold tabular-nums text-amber-400">
-        {formatCompactNumber(trend.trend_score)}
-      </div>
+        <div className="text-sm font-semibold tabular-nums text-amber-400">
+          {formatCompactNumber(trend.trend_score)}
+        </div>
 
-      <span className="w-12 text-right text-[11px] font-mono text-zinc-700">
-        {formatCompactNumber(trend.post_count)}
-        <span className="ml-0.5 text-zinc-800">vol</span>
-      </span>
-    </motion.div>
+        <span className="w-12 text-right text-[11px] font-mono text-zinc-700">
+          {formatCompactNumber(trend.post_count)}
+          <span className="ml-0.5 text-zinc-800">vol</span>
+        </span>
+      </motion.div>
+    </Link>
   );
 }
 

@@ -90,15 +90,17 @@ function StepProgress({ duration, active }: { duration: number; active: boolean 
 }
 
 export function BuildProcess({
-  trends,
-  connected,
-  isLoading,
+  trends = [],
+  connected = false,
+  isLoading = false,
+  selectedTrend = null,
 }: {
-  trends: TwitterTrend[];
-  connected: boolean;
-  isLoading: boolean;
+  trends?: TwitterTrend[];
+  connected?: boolean;
+  isLoading?: boolean;
+  selectedTrend?: TwitterTrend | null;
 }) {
-  const topTrend = trends[0];
+  const activeTrend = selectedTrend ?? trends[0] ?? null;
   const [activeStepIdx, setActiveStepIdx] = useState(0);
   const [doneSteps, setDoneSteps] = useState<Set<StepId>>(new Set());
   const [log, setLog] = useState<LogLine[]>([]);
@@ -110,16 +112,16 @@ export function BuildProcess({
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!topTrend) {
+    if (!activeTrend) {
       return;
     }
 
-    if (topTrend.trend !== prevTrendRef.current) {
-      prevTrendRef.current = topTrend.trend;
-      buildTrendRef.current = topTrend;
+    if (activeTrend.trend !== prevTrendRef.current) {
+      prevTrendRef.current = activeTrend.trend;
+      buildTrendRef.current = activeTrend;
       setBuildKey((current) => current + 1);
     }
-  }, [topTrend]);
+  }, [activeTrend]);
 
   useEffect(() => {
     const trend = buildTrendRef.current;
@@ -248,7 +250,7 @@ export function BuildProcess({
           <div className="text-zinc-700">relay offline - no live trend build yet</div>
         )}
 
-        {!isLoading && connected && !topTrend && log.length === 0 && (
+        {!isLoading && connected && !activeTrend && log.length === 0 && (
           <div className="text-zinc-700">extractor returned no active trends</div>
         )}
 
@@ -260,7 +262,7 @@ export function BuildProcess({
       </div>
 
       <AnimatePresence>
-        {isReady && topTrend && (
+        {isReady && activeTrend && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -273,7 +275,7 @@ export function BuildProcess({
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 py-2.5 text-sm font-semibold text-[#0C0A08] transition-colors hover:bg-amber-400"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Deploy {trendSlug(topTrend.trend)} app
+              Deploy {trendSlug(activeTrend.trend)} app
             </button>
           </motion.div>
         )}
