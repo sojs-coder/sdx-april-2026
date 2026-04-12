@@ -66,8 +66,6 @@ def start():
             "docker", "run",
             "--name", name,
             "--detach",
-            "--interactive",
-            "--tty",
             # Mount Omnara creds (read-only)
             "--volume", f"{LOCAL_CREDS}:/root/.omnara/creds.json:ro",
             # Mount Codex auth tokens (read-only) — no login prompt

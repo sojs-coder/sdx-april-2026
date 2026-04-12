@@ -15,4 +15,4 @@ RUN curl -fsSL https://omnara.com/install.sh | bash
 
 ENV PATH="/root/.omnara/bin:$PATH"
 
-CMD ["omnara"]
+# CMD ["omnara"]

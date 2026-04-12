@@ -9,6 +9,7 @@ if (!process.env.TOKEN && !useMock) {
 }
 
 const express = require("express");
+const path = require("path");
 const {
     fetchTrendsWithCounts,
     AuthError,
@@ -20,6 +21,7 @@ const { savePRDs, listPRDs } = require("./lib/storage");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PUBLIC_DIR = path.join(__dirname, "public");
 
 // ---------------------------------------------------------------------------
 // In-memory response cache: Map<q, { ts: number, result: Array }>
@@ -38,32 +40,92 @@ function getCached(q) {
     return entry.result;
 }
 
-// ---------------------------------------------------------------------------
-// Route: GET /?q=XX
-// ---------------------------------------------------------------------------
-app.get("/", async (req, res, next) => {
-    const rawQ = req.query.q;
+function parseTopN(rawQ) {
     const q = parseInt(rawQ, 10);
     if (!rawQ || !/^\d+$/.test(rawQ) || isNaN(q) || q < 1 || q > 50) {
+        return null;
+    }
+    return q;
+}
+
+async function getTrendsResponse(q) {
+    const cached = getCached(q);
+    if (cached) {
+        return { trends: cached, cached: true, fetched_at: new Date().toISOString() };
+    }
+
+    const trendsWithCounts = await fetchTrendsWithCounts();
+    if (trendsWithCounts.length === 0) {
+        return { trends: [], cached: false, fetched_at: new Date().toISOString() };
+    }
+
+    const trends = detectTrends(trendsWithCounts, q);
+    cache.set(q, { ts: Date.now(), result: trends });
+    return { trends, cached: false, fetched_at: new Date().toISOString() };
+}
+
+async function getIdeasResponse() {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        const error = new Error("ANTHROPIC_API_KEY is not set in .env");
+        error.statusCode = 500;
+        throw error;
+    }
+
+    const cached = cache.get("ideas");
+    if (cached && Date.now() - cached.ts < IDEAS_CACHE_TTL_MS) {
+        return { ...cached.result, cached: true };
+    }
+
+    const trendsWithCounts = await fetchTrendsWithCounts();
+    if (trendsWithCounts.length === 0) {
+        return { meta_trends: [], ideas: [] };
+    }
+
+    // Feed all available trends to the agent for best grouping coverage
+    const trends = detectTrends(trendsWithCounts, trendsWithCounts.length);
+    const result = await generateIdeas(trends);
+
+    cache.set("ideas", { ts: Date.now(), result });
+    const savedPath = savePRDs(result);
+    console.log(`PRDs saved to ${savedPath}`);
+    return result;
+}
+
+app.use(express.static(PUBLIC_DIR));
+
+// ---------------------------------------------------------------------------
+// Route: GET /api/trends?q=XX
+// ---------------------------------------------------------------------------
+app.get("/api/trends", async (req, res, next) => {
+    const q = parseTopN(req.query.q);
+    if (!q) {
         return res
             .status(400)
             .json({ error: "q must be an integer between 1 and 50" });
     }
 
-    const cached = getCached(q);
-    if (cached) {
-        return res.json({ trends: cached, cached: true });
+    try {
+        return res.json(await getTrendsResponse(q));
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Backward-compatible legacy route: GET /?q=XX
+app.get("/", async (req, res, next) => {
+    if (!req.query.q) {
+        return res.sendFile(path.join(PUBLIC_DIR, "index.html"));
+    }
+
+    const q = parseTopN(req.query.q);
+    if (!q) {
+        return res
+            .status(400)
+            .json({ error: "q must be an integer between 1 and 50" });
     }
 
     try {
-        const trendsWithCounts = await fetchTrendsWithCounts();
-        if (trendsWithCounts.length === 0) {
-            return res.json({ trends: [] });
-        }
-
-        const trends = detectTrends(trendsWithCounts, q);
-        cache.set(q, { ts: Date.now(), result: trends });
-        return res.json({ trends });
+        return res.json(await getTrendsResponse(q));
     } catch (err) {
         next(err);
     }
@@ -76,30 +138,17 @@ app.get("/", async (req, res, next) => {
 // ---------------------------------------------------------------------------
 const IDEAS_CACHE_TTL_MS = 30 * 60 * 1000;
 
-app.get("/ideas", async (req, res, next) => {
-    if (!process.env.ANTHROPIC_API_KEY) {
-        return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set in .env" });
-    }
-
-    const cached = cache.get("ideas");
-    if (cached && Date.now() - cached.ts < IDEAS_CACHE_TTL_MS) {
-        return res.json({ ...cached.result, cached: true });
-    }
-
+app.get("/api/ideas", async (req, res, next) => {
     try {
-        const trendsWithCounts = await fetchTrendsWithCounts();
-        if (trendsWithCounts.length === 0) {
-            return res.json({ meta_trends: [], ideas: [] });
-        }
+        return res.json(await getIdeasResponse());
+    } catch (err) {
+        next(err);
+    }
+});
 
-        // Feed all available trends to the agent for best grouping coverage
-        const trends = detectTrends(trendsWithCounts, trendsWithCounts.length);
-        const result = await generateIdeas(trends);
-
-        cache.set("ideas", { ts: Date.now(), result });
-        const savedPath = savePRDs(result);
-        console.log(`PRDs saved to ${savedPath}`);
-        return res.json(result);
+app.get("/ideas", async (req, res, next) => {
+    try {
+        return res.json(await getIdeasResponse());
     } catch (err) {
         next(err);
     }
@@ -108,6 +157,11 @@ app.get("/ideas", async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // Route: GET /ideas/history  — list all saved PRD files
 // ---------------------------------------------------------------------------
+app.get("/api/ideas/history", (req, res) => {
+    const runs = listPRDs();
+    res.json({ count: runs.length, runs });
+});
+
 app.get("/ideas/history", (req, res) => {
     const runs = listPRDs();
     res.json({ count: runs.length, runs });
@@ -117,6 +171,9 @@ app.get("/ideas/history", (req, res) => {
 // Error middleware
 // ---------------------------------------------------------------------------
 app.use((err, req, res, _next) => {
+    if (err.statusCode) {
+        return res.status(err.statusCode).json({ error: err.message });
+    }
     if (err instanceof AuthError) {
         return res
             .status(500)
