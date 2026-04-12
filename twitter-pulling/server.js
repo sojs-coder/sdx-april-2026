@@ -15,6 +15,8 @@ const {
     RateLimitError,
 } = require("./lib/twitterClient");
 const { detectTrends } = require("./lib/trendDetector");
+const { generateIdeas } = require("./lib/ideaAgent");
+const { savePRDs, listPRDs } = require("./lib/storage");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -65,6 +67,50 @@ app.get("/", async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+});
+
+// ---------------------------------------------------------------------------
+// Route: GET /ideas
+// Fetches current trends, groups related ones, generates 3 micro-SaaS PRDs.
+// Cached for 15 minutes (LLM calls are expensive and trends don't shift that fast).
+// ---------------------------------------------------------------------------
+const IDEAS_CACHE_TTL_MS = 30 * 60 * 1000;
+
+app.get("/ideas", async (req, res, next) => {
+    if (!process.env.ANTHROPIC_API_KEY) {
+        return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set in .env" });
+    }
+
+    const cached = cache.get("ideas");
+    if (cached && Date.now() - cached.ts < IDEAS_CACHE_TTL_MS) {
+        return res.json({ ...cached.result, cached: true });
+    }
+
+    try {
+        const trendsWithCounts = await fetchTrendsWithCounts();
+        if (trendsWithCounts.length === 0) {
+            return res.json({ meta_trends: [], ideas: [] });
+        }
+
+        // Feed all available trends to the agent for best grouping coverage
+        const trends = detectTrends(trendsWithCounts, trendsWithCounts.length);
+        const result = await generateIdeas(trends);
+
+        cache.set("ideas", { ts: Date.now(), result });
+        const savedPath = savePRDs(result);
+        console.log(`PRDs saved to ${savedPath}`);
+        return res.json(result);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Route: GET /ideas/history  — list all saved PRD files
+// ---------------------------------------------------------------------------
+app.get("/ideas/history", (req, res) => {
+    const runs = listPRDs();
+    res.json({ count: runs.length, runs });
 });
 
 // ---------------------------------------------------------------------------
