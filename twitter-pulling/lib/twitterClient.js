@@ -12,94 +12,78 @@ class RateLimitError extends Error {
     this.retryAfter = retryAfter;
   }
 }
-class QueryError extends Error {
-  constructor(msg) { super(msg); this.name = 'QueryError'; }
+
+const TRENDS_URL = 'https://api.twitter.com/2/trends/by/woeid/1'; // WOEID 1 = worldwide
+const COUNTS_URL = 'https://api.twitter.com/2/tweets/counts/recent';
+
+function authHeader() {
+  return { Authorization: `Bearer ${process.env.TOKEN}` };
 }
 
-const SEARCH_URL = 'https://api.twitter.com/2/tweets/search/recent';
-const ANNOTATION_TYPES = new Set(['Person', 'Organization', 'Product']);
+function apiCall(url, params) {
+  return axios.get(url, { params, headers: authHeader(), timeout: 8000 });
+}
 
 /**
- * Fetch recent popular tweets from the last hour and normalize them.
- * @param {number} topN - number of trends the caller wants; drives how many pages to fetch
- * @returns {Promise<Array>} flat array of normalized tweet objects
+ * Fetch current worldwide trending topics, enriched with last-hour tweet counts.
+ * Returns array of { trend_name, tweet_count } sorted by tweet_count descending.
  */
-async function fetchRecentTweets(topN) {
-  const token = process.env.TOKEN;
-  const pages = Math.min(Math.ceil(topN * 2.5), 5);
-  const startTime = new Date(Date.now() - 3_600_000).toISOString();
-
-  const params = {
-    query: 'min_faves:50 -is:retweet lang:en',
-    start_time: startTime,
-    max_results: 100,
-    'tweet.fields': 'public_metrics,entities,created_at',
-  };
-
-  const headers = { Authorization: `Bearer ${token}` };
-
-  const tweets = [];
-  let nextToken = null;
-  let fetched = 0;
-
-  while (fetched < pages) {
-    const reqParams = nextToken ? { ...params, next_token: nextToken } : params;
-
-    let resp;
-    try {
-      resp = await axios.get(SEARCH_URL, { params: reqParams, headers, timeout: 8000 });
-    } catch (err) {
-      if (err.response) {
-        const status = err.response.status;
-        if (status === 401) throw new AuthError('Twitter authentication failed — check TOKEN in .env');
-        if (status === 429) {
-          const reset = err.response.headers['x-rate-limit-reset'];
-          throw new RateLimitError('Twitter rate limit hit', reset ? parseInt(reset, 10) : null);
-        }
-        if (status === 400) throw new QueryError(`Twitter rejected query: ${JSON.stringify(err.response.data)}`);
-      }
-      throw err;
-    }
-
-    const { data: body } = resp;
-    const rawTweets = body.data || [];
-
-    for (const t of rawTweets) {
-      tweets.push(normalizeTweet(t));
-    }
-
-    fetched++;
-
-    if (!body.meta?.next_token || (body.meta?.result_count ?? 0) < 100) break;
-    nextToken = body.meta.next_token;
+async function fetchTrendsWithCounts() {
+  // Step 1: get trending topic names
+  let trendsResp;
+  try {
+    trendsResp = await apiCall(TRENDS_URL);
+  } catch (err) {
+    handleAxiosError(err);
   }
 
-  return tweets;
+  const trends = trendsResp.data.data || []; // [{ trend_name }, ...]
+
+  if (trends.length === 0) return [];
+
+  const startTime = new Date(Date.now() - 3_600_000).toISOString();
+
+  // Step 2: fetch last-hour tweet count for every trend in parallel
+  const enriched = await Promise.all(
+    trends.map(async (t) => {
+      const count = await fetchTweetCount(t.trend_name, startTime);
+      return { trend_name: t.trend_name, tweet_count: count };
+    })
+  );
+
+  return enriched.sort((a, b) => b.tweet_count - a.tweet_count);
 }
 
-function normalizeTweet(t) {
-  const m = t.public_metrics || {};
-  const entities = t.entities || {};
-
-  const hashtags = (entities.hashtags || []).map(h => h.tag.toLowerCase());
-  const cashtags = (entities.cashtags || []).map(c => c.tag.toUpperCase());
-  const mentions = (entities.mentions || []).map(u => u.username.toLowerCase());
-  const annotations = (entities.annotations || [])
-    .filter(a => ANNOTATION_TYPES.has(a.type))
-    .map(a => a.normalized_text || a.text || '');
-
-  return {
-    id: t.id,
-    likes: m.like_count || 0,
-    retweets: m.retweet_count || 0,
-    replies: m.reply_count || 0,
-    quotes: m.quote_count || 0,
-    hashtags,
-    cashtags,
-    mentions,
-    annotations,
-    text: t.text || '',
-  };
+/**
+ * Fetch the total tweet count for a query term in the last hour.
+ * Returns 0 on any error so a single failure doesn't break the whole request.
+ */
+async function fetchTweetCount(query, startTime) {
+  try {
+    const resp = await apiCall(COUNTS_URL, {
+      query,
+      granularity: 'hour',
+      start_time: startTime,
+    });
+    return resp.data.meta?.total_tweet_count || 0;
+  } catch (err) {
+    // Don't surface individual count failures — just score as 0
+    return 0;
+  }
 }
 
-module.exports = { fetchRecentTweets, AuthError, RateLimitError, QueryError };
+function handleAxiosError(err) {
+  if (err.response) {
+    const status = err.response.status;
+    if (status === 401 || status === 403) {
+      throw new AuthError('Twitter authentication failed — check TOKEN in .env');
+    }
+    if (status === 429) {
+      const reset = err.response.headers['x-rate-limit-reset'];
+      throw new RateLimitError('Twitter rate limit hit', reset ? parseInt(reset, 10) : null);
+    }
+  }
+  throw err;
+}
+
+module.exports = { fetchTrendsWithCounts, AuthError, RateLimitError };
