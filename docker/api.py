@@ -54,34 +54,28 @@ def headers():
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 def get(path):
-    import urllib.request
-    req = urllib.request.Request(f"{BASE_URL}{path}", headers=headers())
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+    import requests as _r
+    resp = _r.get(f"{BASE_URL}{path}", headers=headers(), timeout=30)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def post(path, body=None):
-    import urllib.request
-    data = json.dumps(body or {}).encode()
-    req = urllib.request.Request(
-        f"{BASE_URL}{path}",
-        data=data,
-        headers=headers(),
-        method="POST",
-    )
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+    import requests as _r
+    resp = _r.post(f"{BASE_URL}{path}", headers=headers(), json=body or {}, timeout=30)
+    if resp.status_code == 204:
+        return {}
+    resp.raise_for_status()
+    return resp.json()
 
 
 def delete(path):
-    import urllib.request
-    req = urllib.request.Request(
-        f"{BASE_URL}{path}",
-        headers=headers(),
-        method="DELETE",
-    )
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+    import requests as _r
+    resp = _r.delete(f"{BASE_URL}{path}", headers=headers(), timeout=30)
+    if resp.status_code == 204:
+        return {}
+    resp.raise_for_status()
+    return resp.json()
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
@@ -114,9 +108,9 @@ def cmd_sessions():
     for s in sessions:
         sess = s.get("session", s)
         print(
-            f"{sess.get('session_id',''):<38} "
-            f"{sess.get('name','(unnamed)'):<30} "
-            f"{sess.get('status','')}"
+            f"{str(sess.get('session_id') or ''):<38} "
+            f"{str(sess.get('name') or '(unnamed)'):<30} "
+            f"{str(sess.get('status') or '')}"
         )
 
 
@@ -133,14 +127,15 @@ def cmd_messages(session_id):
         print("No agent sessions found.")
         return
     for agent in agent_sessions:
-        agent_id = agent.get("agent_session_id") or agent.get("id")
+        agent_id = agent.get("session_id") or agent.get("agent_session_id") or agent.get("id")
         print(f"\n── Agent session: {agent_id} ──")
         msgs = get(f"/user-sessions/{session_id}/agent-sessions/{agent_id}/messages")
         messages = msgs if isinstance(msgs, list) else msgs.get("messages", [])
         for msg in messages:
-            role = msg.get("role", "?").upper()
-            content = msg.get("content", "")
-            print(f"[{role}] {content[:200]}")
+            text = (msg.get("payload") or {}).get("content", {}).get("text", "")
+            role = (msg.get("metadata") or {}).get("role", "?").upper()
+            if text:
+                print(f"[{role}] {text[:200]}")
 
 
 def cmd_start(workspace_id, machine_id=None, prompt=None):

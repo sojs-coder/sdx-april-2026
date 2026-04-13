@@ -82,8 +82,13 @@ def format_prompt(idea: dict) -> str:
     # ── Header ────────────────────────────────────────────────────────────────
     sections.append(f"# Build task: {name}\n")
     sections.append(
-        "You are an expert full-stack engineer. Build this product end-to-end "
-        "using Claude Code. Commit your work incrementally after each layer.\n"
+        "You are an expert full-stack engineer. Build this product using Claude Code.\n\n"
+        "**Critical rules before you read anything else:**\n"
+        "- Use SQLite or flat JSON files for storage — no external databases\n"
+        "- No API keys, no paid services, no OAuth providers\n"
+        "- Must run with `npm install && npm run dev` — nothing else\n"
+        "- Simple single-repo structure, no monorepos\n"
+        "- A working simple app is better than a broken complex one\n"
     )
 
     # ── Product context ───────────────────────────────────────────────────────
@@ -289,14 +294,30 @@ def format_prompt(idea: dict) -> str:
         sections.append("\n".join(d_lines))
 
     # ── Closing instructions ──────────────────────────────────────────────────
+    import re
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    workspace_root = "/home/vkommera/Documents/Projects/omnaraw_ws"
+    project_dir = f"{workspace_root}/{slug}"
+
     sections.append(
-        "## Instructions\n"
-        "1. Scaffold the repo structure first, then implement backend, then frontend.\n"
-        "2. Follow the DB schema and API contracts exactly.\n"
-        "3. Use the exact design tokens specified.\n"
-        "4. Create a `.env.example` from the environment variables list.\n"
-        "5. Commit after completing each major section (backend setup, "
-        "DB migrations, API routes, frontend pages, styling)."
+        f"## Constraints — read these first, they override the PRD\n"
+        f"- **No external databases.** Use SQLite (via better-sqlite3 or similar) or JSON files on disk. No Postgres, MySQL, Supabase, MongoDB, Redis, or any hosted DB.\n"
+        f"- **No paid API keys.** Do not use Stripe, SendGrid, Resend, Twilio, OpenAI, or any service that requires signing up or paying. If the PRD calls for email, stub it with a console.log. If it calls for payments, show a static pricing page.\n"
+        f"- **No auth services.** No Auth0, Clerk, NextAuth with OAuth providers. If login is needed, use a simple hardcoded demo user or localStorage.\n"
+        f"- **Keep it runnable with one command.** The app must start with `npm run dev` (or equivalent) after `npm install`. No Docker, no environment setup beyond copying a `.env.example`.\n"
+        f"- **Simple stack only.** Next.js or plain HTML/CSS/JS for frontend. If a backend is needed, use a single Express or Fastify file with SQLite. No microservices, no monorepos.\n"
+        f"- The PRD is a reference for features and design — adapt it to meet these constraints. A simpler working app beats a complex broken one.\n\n"
+        f"## Build instructions\n"
+        f"First, create and enter a new directory for this project:\n"
+        f"```\nmkdir -p {project_dir}\ncd {project_dir}\n```\n"
+        f"All code must be written inside `{project_dir}`.\n\n"
+        f"Then build in this order:\n"
+        f"1. Scaffold the repo and initialise git.\n"
+        f"2. Build the frontend pages with hardcoded/mock data first so it renders.\n"
+        f"3. Add a lightweight backend (SQLite) only if the app genuinely needs persistence.\n"
+        f"4. Wire frontend to backend.\n"
+        f"5. Ensure `npm install && npm run dev` works from the project root.\n"
+        f"6. Commit after each section."
     )
 
     return "\n\n---\n\n".join(sections)
@@ -428,7 +449,7 @@ async def stream_job(job_id: str):
 
     async def event_generator():
         seen = len(job.messages)
-        terminal_statuses = {"done", "stopped", "error", "completed", "failed"}
+        terminal_statuses = {"DONE", "STOPPED", "ERROR", "COMPLETED", "FAILED", "CANCELLED"}
 
         while True:
             try:
