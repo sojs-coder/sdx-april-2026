@@ -27,9 +27,7 @@ export function useTwitterTrends(
   options: { interval?: number; limit?: number } = {},
 ) {
   const { interval = 45_000, limit = 8 } = options;
-  const [state, setState] = useState<TwitterTrendsState>(() =>
-    getInitialState(limit),
-  );
+  const [state, setState] = useState<TwitterTrendsState>(DEFAULT_STATE);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,27 +129,6 @@ export function useTwitterTrends(
   }, [interval, limit]);
 
   return state;
-}
-
-function getInitialState(limit: number): TwitterTrendsState {
-  const cachedState = readTrendStateCache(limit);
-
-  if (!cachedState) {
-    return DEFAULT_STATE;
-  }
-
-  return {
-    trends: cachedState.trends,
-    clusters: cachedState.clusters,
-    cached: cachedState.cached,
-    fetchedAt: cachedState.fetchedAt,
-    trendCount: cachedState.trendCount,
-    clusterCount: cachedState.clusterCount,
-    windowPosts: cachedState.windowPosts,
-    isLoading: true,
-    error: null,
-    connected: cachedState.connected,
-  };
 }
 
 function readTrendStateCache(limit: number) {
