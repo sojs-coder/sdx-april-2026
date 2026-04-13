@@ -2,280 +2,376 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ExternalLink, Loader } from "lucide-react";
-import type { TwitterTrend } from "@/lib/twitter-trends";
-import { formatCompactNumber, trendSlug } from "@/lib/twitter-trends";
+import { Check, ChevronRight, Loader, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const STEPS = [
-  { id: "capture", label: "Trend captured", duration: 900 },
-  { id: "classify", label: "Signal clustered", duration: 1200 },
-  { id: "scaffold", label: "Opportunity framed", duration: 1900 },
-  { id: "bundle", label: "Prototype scaffolded", duration: 1500 },
-  { id: "ready", label: "Ready to deploy", duration: 0 },
-] as const;
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type StepId = typeof STEPS[number]["id"];
+interface Idea {
+  name: string;
+  tagline: string;
+  related_trend: string;
+  problem: string;
+  full_prd: Record<string, unknown>;
+}
 
 interface LogLine {
   id: string;
-  step: StepId;
+  role: string;
   text: string;
-  ts: number;
 }
 
-function makeLogLine(step: StepId, trend: TwitterTrend): string {
-  const tags = trend.representative_hashtags.slice(0, 2).join(" ");
-  const rate = `${formatCompactNumber(trend.post_count)} posts/hr`;
+type Phase =
+  | { type: "idle" }
+  | { type: "generating" }
+  | { type: "error"; message: string }
+  | { type: "ideas"; ideas: Idea[] }
+  | { type: "building"; idea: Idea; jobId: string }
+  | { type: "done"; idea: Idea };
 
-  switch (step) {
-    case "capture":
-      return `[trend]  ${trend.trend} | ${rate}`;
-    case "classify":
-      return tags
-        ? `[cluster] matched ${tags} | reach=${formatCompactNumber(trend.trend_score)}`
-        : `[cluster] standalone keyword | reach=${formatCompactNumber(trend.trend_score)}`;
-    case "scaffold":
-      return `[brief]  market brief generated | ${Math.floor(Math.random() * 3) + 2} angles`;
-    case "bundle":
-      return `[build]  next preview compiled in ${(Math.random() * 1.1 + 1.1).toFixed(1)}s`;
-    case "ready":
-      return `[ready]  ${trendSlug(trend.trend)}.bullishforge.app`;
-  }
+// ─── Pipeline steps ───────────────────────────────────────────────────────────
+
+const STEPS = [
+  { id: "prompt",   label: "Prompt dispatched"   },
+  { id: "scaffold", label: "Scaffold generated"  },
+  { id: "backend",  label: "Backend implemented" },
+  { id: "frontend", label: "Frontend built"      },
+  { id: "ready",    label: "Ready to deploy"     },
+] as const;
+
+function inferStepIdx(log: LogLine[]): number {
+  const combined = log.map((l) => l.text.toLowerCase()).join(" ");
+  if (combined.includes("deploy") || combined.includes("ready")) return 4;
+  if (combined.includes("frontend") || combined.includes("page") || combined.includes("component")) return 3;
+  if (combined.includes("backend") || combined.includes("api") || combined.includes("database") || combined.includes("schema")) return 2;
+  if (combined.includes("scaffold") || combined.includes("package.json") || combined.includes("mkdir")) return 1;
+  if (log.length > 0) return 0;
+  return -1;
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StepDot({ status }: { status: "done" | "active" | "pending" }) {
   if (status === "done") {
     return (
-      <div
-        className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500/20"
-        role="img"
-        aria-label="Complete"
-      >
+      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500/20" role="img" aria-label="Complete">
         <Check className="h-2.5 w-2.5 text-amber-500" aria-hidden="true" />
       </div>
     );
   }
-
   if (status === "active") {
     return (
-      <div
-        className="flex h-4 w-4 items-center justify-center rounded-full border border-amber-500/60"
-        role="status"
-        aria-label="In progress"
-      >
+      <div className="flex h-4 w-4 items-center justify-center rounded-full border border-amber-500/60" role="status" aria-label="In progress">
         <Loader className="h-2.5 w-2.5 animate-spin text-amber-500" aria-hidden="true" />
       </div>
     );
   }
-
   return <div className="h-4 w-4 rounded-full border border-white/10" role="img" aria-label="Pending" />;
 }
 
-function StepProgress({ duration, active }: { duration: number; active: boolean }) {
-  if (!active || duration === 0) {
-    return null;
-  }
-
+function IdeaCard({ idea, onBuild }: { idea: Idea; onBuild: () => void }) {
   return (
-    <div className="mt-1.5 h-px w-full overflow-hidden rounded-full bg-white/6">
-      <motion.div
-        className="h-full origin-left rounded-full bg-amber-500/60"
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={{ duration: duration / 1000, ease: "linear" }}
-      />
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-lg border border-white/8 bg-white/[0.02] p-4 space-y-2"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">{idea.name}</p>
+          <p className="truncate text-[11px] font-mono text-zinc-600">{idea.tagline}</p>
+        </div>
+        <span className="flex-shrink-0 rounded bg-amber-500/8 px-1.5 py-0.5 text-[10px] font-mono text-amber-500/70">
+          #{idea.related_trend}
+        </span>
+      </div>
+      <p className="line-clamp-2 text-[11px] leading-relaxed text-zinc-600">{idea.problem}</p>
+      <button
+        type="button"
+        onClick={onBuild}
+        className="flex w-full items-center justify-center gap-1.5 rounded bg-amber-500 py-1.5 text-xs font-bold text-[#0C0A08] transition-colors hover:bg-amber-400"
+      >
+        <Zap className="h-3 w-3" />
+        Build this
+      </button>
+    </motion.div>
   );
 }
 
+// ─── Props ────────────────────────────────────────────────────────────────────
+
 export function BuildProcess({
-  trends = [],
   connected = false,
-  isLoading = false,
-  selectedTrend = null,
 }: {
-  trends?: TwitterTrend[];
+  trends?: { trend: string }[];
   connected?: boolean;
   isLoading?: boolean;
-  selectedTrend?: TwitterTrend | null;
+  selectedTrend?: unknown;
 }) {
-  const activeTrend = selectedTrend ?? trends[0] ?? null;
-  const [activeStepIdx, setActiveStepIdx] = useState(0);
-  const [doneSteps, setDoneSteps] = useState<Set<StepId>>(new Set());
+  const [phase, setPhase] = useState<Phase>({ type: "idle" });
   const [log, setLog] = useState<LogLine[]>([]);
-  const [buildKey, setBuildKey] = useState(0);
-  const prevTrendRef = useRef("");
-  const buildTrendRef = useRef<TwitterTrend | null>(null);
-  const generationRef = useRef(0);
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const logEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!activeTrend) {
-      return;
-    }
-
-    if (activeTrend.trend !== prevTrendRef.current) {
-      prevTrendRef.current = activeTrend.trend;
-      buildTrendRef.current = activeTrend;
-      setBuildKey((current) => current + 1);
-    }
-  }, [activeTrend]);
-
-  useEffect(() => {
-    const trend = buildTrendRef.current;
-    if (!trend) {
-      return;
-    }
-
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
-
-    const generation = ++generationRef.current;
-
-    setActiveStepIdx(0);
-    setDoneSteps(new Set());
-    setLog([]);
-
-    let delay = 0;
-    STEPS.forEach((step, index) => {
-      const startTimer = setTimeout(() => {
-        if (generationRef.current !== generation) {
-          return;
-        }
-
-        setActiveStepIdx(index);
-        setLog((current) => [
-          ...current.slice(-20),
-          {
-            id: `${buildKey}-${step.id}`,
-            step: step.id,
-            text: makeLogLine(step.id, trend),
-            ts: Date.now(),
-          },
-        ]);
-      }, delay);
-      timersRef.current.push(startTimer);
-
-      if (step.duration > 0) {
-        delay += step.duration;
-        const finishTimer = setTimeout(() => {
-          if (generationRef.current !== generation) {
-            return;
-          }
-
-          setDoneSteps((current) => new Set([...current, step.id]));
-        }, delay);
-        timersRef.current.push(finishTimer);
-      }
-    });
-
-    return () => {
-      timersRef.current.forEach(clearTimeout);
-      timersRef.current = [];
-    };
-  }, [buildKey]);
+  const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log]);
 
-  const isReady = doneSteps.has("bundle") && activeStepIdx === STEPS.length - 1;
+  useEffect(() => () => { esRef.current?.close(); }, []);
+
+  async function handleGenerate() {
+    setPhase({ type: "generating" });
+    try {
+      const resp = await fetch("/api/ideas");
+      const data = await resp.json() as { ideas?: Idea[]; error?: string };
+      if (!resp.ok) throw new Error(data.error ?? "Failed to generate ideas");
+      setPhase({ type: "ideas", ideas: data.ideas ?? [] });
+    } catch (err) {
+      setPhase({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
+    }
+  }
+
+  async function handleBuild(idea: Idea) {
+    setLog([]);
+    setPhase({ type: "building", idea, jobId: "" });
+
+    let jobId: string;
+    try {
+      const resp = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea }),
+      });
+      const data = await resp.json() as { job_id?: string; detail?: string };
+      if (!resp.ok) throw new Error(data.detail ?? "Failed to submit job");
+      jobId = data.job_id!;
+    } catch (err) {
+      setPhase({ type: "error", message: err instanceof Error ? err.message : "Unknown error" });
+      return;
+    }
+
+    setPhase({ type: "building", idea, jobId });
+
+    esRef.current?.close();
+    const es = new EventSource(`/api/jobs/${jobId}/stream`);
+    esRef.current = es;
+
+    es.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data as string) as {
+          role?: string;
+          content?: string;
+          status?: string;
+          error?: string;
+        };
+        if (msg.status) {
+          es.close();
+          setPhase({ type: "done", idea });
+          return;
+        }
+        if (msg.error) {
+          es.close();
+          setPhase({ type: "error", message: msg.error });
+          return;
+        }
+        if (msg.content) {
+          setLog((prev) => [
+            ...prev.slice(-60),
+            { id: `${Date.now()}-${Math.random()}`, role: msg.role ?? "assistant", text: msg.content! },
+          ]);
+        }
+      } catch {
+        // ignore malformed events
+      }
+    };
+
+    es.onerror = () => {
+      es.close();
+      setPhase((p) => p.type === "building" ? { type: "done", idea } : p);
+    };
+  }
+
+  function handleReset() {
+    esRef.current?.close();
+    setLog([]);
+    setPhase({ type: "idle" });
+  }
+
+  const activeStepIdx =
+    phase.type === "done" ? STEPS.length - 1
+    : phase.type === "building" ? inferStepIdx(log)
+    : -1;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex-shrink-0 space-y-3 border-b border-white/5 p-5">
-        {STEPS.map((step, index) => {
-          const status = doneSteps.has(step.id)
-            ? "done"
-            : activeStepIdx === index
-              ? "active"
-              : "pending";
-          const isActive = activeStepIdx === index && !doneSteps.has(step.id);
 
-          return (
-            <div key={step.id}>
-              <div className="flex items-center gap-3">
-                <StepDot status={status} />
-                <span
-                  className={cn(
+      {/* Pipeline steps — shown during build / done */}
+      <AnimatePresence>
+        {(phase.type === "building" || phase.type === "done") && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex-shrink-0 space-y-3 border-b border-white/5 p-5"
+          >
+            {STEPS.map((step, idx) => {
+              const status =
+                phase.type === "done" || idx < activeStepIdx ? "done"
+                : idx === activeStepIdx ? "active"
+                : "pending";
+              return (
+                <div key={step.id} className="flex items-center gap-3">
+                  <StepDot status={status} />
+                  <span className={cn(
                     "text-sm font-medium transition-colors",
-                    status === "done"
-                      ? "text-amber-400/80"
-                      : status === "active"
-                        ? "text-white"
-                        : "text-zinc-700",
+                    status === "done" ? "text-amber-400/80"
+                    : status === "active" ? "text-white"
+                    : "text-zinc-700",
+                  )}>
+                    {step.label}
+                  </span>
+                  {status === "done" && (
+                    <span className="ml-auto text-[10px] font-mono uppercase text-zinc-800">done</span>
+                  )}
+                </div>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto">
+
+        {phase.type === "idle" && (
+          <div className="flex h-full flex-col items-center justify-center gap-4 px-6">
+            <p className="text-center text-xs font-mono text-zinc-600">
+              Generate micro-SaaS ideas from live trending topics, then build one with an AI agent.
+            </p>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={!connected}
+              className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-[#0C0A08] transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Generate PRDs
+            </button>
+            {!connected && (
+              <p className="text-[11px] font-mono text-zinc-700">waiting for trend data...</p>
+            )}
+          </div>
+        )}
+
+        {phase.type === "generating" && (
+          <div className="flex h-full flex-col items-center justify-center gap-3">
+            <Loader className="h-5 w-5 animate-spin text-amber-500" />
+            <p className="text-xs font-mono text-zinc-600">generating ideas from live trends...</p>
+            <p className="text-[10px] font-mono text-zinc-800">takes ~30–60s</p>
+          </div>
+        )}
+
+        {phase.type === "error" && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6">
+            <p className="text-center text-xs font-mono text-red-400">{phase.message}</p>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="text-[11px] font-mono text-zinc-600 underline underline-offset-2"
+            >
+              try again
+            </button>
+          </div>
+        )}
+
+        {phase.type === "ideas" && (
+          <div className="space-y-3 p-4">
+            <p className="mb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-700">
+              {phase.ideas.length} ideas — pick one to build
+            </p>
+            {phase.ideas.map((idea) => (
+              <IdeaCard key={idea.name} idea={idea} onBuild={() => handleBuild(idea)} />
+            ))}
+            <button
+              type="button"
+              onClick={handleGenerate}
+              className="w-full py-1 text-[11px] font-mono text-zinc-700 transition-colors hover:text-zinc-400"
+            >
+              regenerate
+            </button>
+          </div>
+        )}
+
+        {(phase.type === "building" || phase.type === "done") && (
+          <div className="space-y-1 p-4 font-mono text-[11px]">
+            {phase.type === "building" && log.length === 0 && (
+              <span className="text-zinc-700">waiting for agent output...</span>
+            )}
+            <AnimatePresence initial={false}>
+              {log.map((line) => (
+                <motion.div
+                  key={line.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className={cn(
+                    "break-words leading-relaxed",
+                    line.role === "tool" ? "text-zinc-600"
+                    : line.role === "user" ? "text-zinc-700"
+                    : "text-zinc-400",
                   )}
                 >
-                  {step.label}
-                </span>
-                {status === "done" && (
-                  <span className="ml-auto text-[10px] font-mono uppercase text-zinc-800">done</span>
-                )}
-              </div>
-              <StepProgress duration={step.duration} active={isActive} />
-            </div>
-          );
-        })}
+                  {line.text}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {phase.type === "building" && (
+              <span className="animate-blink text-amber-500/60">█</span>
+            )}
+            <div ref={logEndRef} />
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 space-y-1 overflow-y-auto p-4 font-mono text-[11px]">
-        <AnimatePresence initial={false}>
-          {log.map((line) => (
-            <motion.div
-              key={line.id}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={cn(
-                "leading-relaxed",
-                line.step === "ready"
-                  ? "text-amber-400"
-                  : line.step === "capture"
-                    ? "text-zinc-400"
-                    : "text-zinc-600",
-              )}
-            >
-              {line.text}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {isLoading && log.length === 0 && (
-          <div className="text-zinc-700">waiting for twitter extractor...</div>
-        )}
-
-        {!isLoading && !connected && log.length === 0 && (
-          <div className="text-zinc-700">relay offline - no live trend build yet</div>
-        )}
-
-        {!isLoading && connected && !activeTrend && log.length === 0 && (
-          <div className="text-zinc-700">extractor returned no active trends</div>
-        )}
-
-        {log.length > 0 && !isReady && (
-          <span className="animate-blink text-amber-500/60">_</span>
-        )}
-
-        <div ref={logEndRef} />
-      </div>
-
+      {/* Footer */}
       <AnimatePresence>
-        {isReady && activeTrend && (
+        {phase.type === "done" && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex-shrink-0 border-t border-white/5 p-4"
+            className="flex-shrink-0 flex flex-col gap-2 border-t border-white/5 p-4"
           >
             <button
               type="button"
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 py-2.5 text-sm font-semibold text-[#0C0A08] transition-colors hover:bg-amber-400"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Deploy {trendSlug(activeTrend.trend)} app
+              <ChevronRight className="h-3.5 w-3.5" />
+              View {phase.idea.name}
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="text-[11px] font-mono text-zinc-700 transition-colors hover:text-zinc-400"
+            >
+              build another
+            </button>
+          </motion.div>
+        )}
+        {phase.type === "building" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex-shrink-0 border-t border-white/5 px-4 pb-3 pt-3"
+          >
+            <button
+              type="button"
+              onClick={handleReset}
+              className="w-full text-[11px] font-mono text-zinc-700 transition-colors hover:text-red-400"
+            >
+              cancel build
             </button>
           </motion.div>
         )}
