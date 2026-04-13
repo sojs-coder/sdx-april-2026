@@ -8,6 +8,7 @@ import { ArrowLeft, Hash, RadioTower, WifiOff } from "lucide-react";
 import { BuildProcess } from "@/components/dashboard/BuildProcess";
 import { useTwitterTrends } from "@/hooks/useTwitterTrends";
 import {
+  DASHBOARD_TRENDS_LIMIT,
   displayKeyword,
   findKeywordCluster,
   formatCompactNumber,
@@ -39,7 +40,10 @@ function MetricBlock({
 export default function SpacePage() {
   const params = useParams<{ space: string }>();
   const slug = params.space ?? "";
-  const trendStream = useTwitterTrends({ interval: 45_000, limit: 30 });
+  const trendStream = useTwitterTrends({
+    interval: 45_000,
+    limit: DASHBOARD_TRENDS_LIMIT,
+  });
   const selectedCluster = useMemo(
     () => findKeywordCluster(trendStream.clusters, slug),
     [trendStream.clusters, slug],
@@ -96,9 +100,21 @@ export default function SpacePage() {
                   </h1>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400">
                     {selectedCluster
-                      ? `This cluster groups every live trend in the current window that shares the "${selectedCluster.keyword}" keyword signal. Use it to inspect adjacent narratives, hashtag overlap, and total reachable volume before spinning up a build.`
+                      ? selectedCluster.mergeStrategy === "semantic"
+                        ? `This cluster groups live trends that a contextual event-resolution pass judged to be about the same story: "${selectedCluster.keyword}". Use it to inspect adjacent narratives and shared reach beyond raw lexical overlap.`
+                        : `This cluster groups every live trend in the current window that shares the "${selectedCluster.keyword}" keyword signal. Use it to inspect adjacent narratives, hashtag overlap, and total reachable volume before spinning up a build.`
                       : "This cluster is no longer present in the active live window. The full cluster ledger below is still available."}
                   </p>
+                  {selectedCluster?.mergeStrategy === "semantic" && selectedCluster.mergeReason && (
+                    <div className="mt-3 max-w-2xl rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-3 py-2 text-xs text-amber-100/70">
+                      {selectedCluster.mergeReason}
+                      {typeof selectedCluster.mergeConfidence === "number" && (
+                        <span className="ml-2 font-mono text-amber-400/80">
+                          {Math.round(selectedCluster.mergeConfidence * 100)}% confidence
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {selectedCluster && (
                   <div className="min-w-[180px] rounded-xl border border-white/8 bg-black/20 p-4">
@@ -145,7 +161,9 @@ export default function SpacePage() {
                     Cluster members
                   </div>
                   <div className="mt-1 text-sm text-zinc-500">
-                    Every live trend currently mapped to this keyword.
+                    {selectedCluster?.mergeStrategy === "semantic"
+                      ? "Every live trend currently mapped to this contextual event cluster."
+                      : "Every live trend currently mapped to this keyword."}
                   </div>
                 </div>
                 {selectedCluster && (

@@ -4,6 +4,7 @@ import { BuildProcess } from "@/components/dashboard/BuildProcess";
 import { HotTopics } from "@/components/dashboard/HotTopics";
 import { useTwitterTrends } from "@/hooks/useTwitterTrends";
 import {
+  DASHBOARD_TRENDS_LIMIT,
   displayKeyword,
   formatCompactNumber,
   formatFetchedAtLabel,
@@ -95,7 +96,10 @@ function OverviewRail({
 }
 
 export default function DashboardPage() {
-  const trendStream = useTwitterTrends({ interval: 45_000, limit: 24 });
+  const trendStream = useTwitterTrends({
+    interval: 45_000,
+    limit: DASHBOARD_TRENDS_LIMIT,
+  });
   const topCluster = trendStream.clusters[0] ?? null;
 
   return (

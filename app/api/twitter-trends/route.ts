@@ -3,9 +3,11 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { NextRequest } from "next/server";
 import {
+  buildKeywordClusters,
   buildTwitterTrendsSnapshot,
   type TwitterTrendsResponse,
 } from "@/lib/twitter-trends";
+import { resolveSemanticKeywordClusters } from "@/lib/twitter-trends-semantic";
 
 const require = createRequire(import.meta.url);
 
@@ -109,7 +111,10 @@ function applyEnvFile(raw: string) {
 }
 
 async function ensureExtractorEnv() {
-  if (process.env.TOKEN || process.env.MOCK_TWITTER === "1") {
+  if (
+    process.env.MOCK_TWITTER === "1" ||
+    (process.env.TOKEN && process.env.ANTHROPIC_API_KEY)
+  ) {
     return;
   }
 
@@ -149,7 +154,12 @@ export async function GET(request: NextRequest) {
   try {
     const trendsWithCounts = await fetchTrendsWithCounts();
     const trends = detectTrends(trendsWithCounts, limit);
-    const snapshot = buildTwitterTrendsSnapshot(trends);
+    const lexicalClusters = buildKeywordClusters(trends);
+    const semanticClusters = await resolveSemanticKeywordClusters(
+      trends,
+      lexicalClusters,
+    );
+    const snapshot = buildTwitterTrendsSnapshot(trends, semanticClusters);
     const fetchedAt = new Date().toISOString();
 
     cache.set(limit, {

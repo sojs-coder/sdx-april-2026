@@ -80,7 +80,11 @@ function ClusterRow({
             {cluster.leadTrend.trend}
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-mono text-zinc-700">
-            {cluster.hashtags.length > 0 ? (
+            {cluster.mergeStrategy === "semantic" ? (
+              <span className="truncate text-amber-400/70">
+                {cluster.mergeReason ?? "derived from semantic event resolution"}
+              </span>
+            ) : cluster.hashtags.length > 0 ? (
               <>
                 <Hash className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{cluster.hashtags.slice(0, 3).join(" ")}</span>

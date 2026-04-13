@@ -5,6 +5,8 @@ export interface TwitterTrend {
   representative_hashtags: string[];
 }
 
+export const DASHBOARD_TRENDS_LIMIT = 40;
+
 export interface TwitterTrendsResponse {
   trends: TwitterTrend[];
   clusters: KeywordCluster[];
@@ -38,6 +40,10 @@ export interface KeywordCluster {
   totalScore: number;
   shareOfWindow: number;
   hashtags: string[];
+  mergeStrategy: "lexical" | "semantic";
+  mergeConfidence?: number;
+  mergeReason?: string;
+  sourceKeywords?: string[];
 }
 
 export interface TwitterTrendsSnapshot {
@@ -252,35 +258,20 @@ export function buildKeywordClusters(trends: TwitterTrend[]) {
       hashtags: uniqueStrings(
         clusterTrends.flatMap((trend) => trend.representative_hashtags),
       ).slice(0, 6),
+      mergeStrategy: "lexical",
+      sourceKeywords: Array.from(keywordScores.keys()).sort((left, right) =>
+        left.localeCompare(right),
+      ),
     } satisfies KeywordCluster);
   }
 
-  const sortedClusters = clusters
-    .sort(
-      (left, right) =>
-        right.totalPosts - left.totalPosts ||
-        right.memberCount - left.memberCount ||
-        left.keyword.localeCompare(right.keyword),
-    );
-
-  const slugCounts = new Map<string, number>();
-
-  return sortedClusters.map((cluster) => {
-    const baseSlug = safeClusterSlug(cluster.keyword);
-    const count = (slugCounts.get(baseSlug) ?? 0) + 1;
-    slugCounts.set(baseSlug, count);
-
-    return {
-      ...cluster,
-      slug: count === 1 ? baseSlug : `${baseSlug}-${count}`,
-    };
-  });
+  return sortAndSlugKeywordClusters(clusters);
 }
 
 export function buildTwitterTrendsSnapshot(
   trends: TwitterTrend[],
+  clusters: KeywordCluster[] = buildKeywordClusters(trends),
 ): TwitterTrendsSnapshot {
-  const clusters = buildKeywordClusters(trends);
   const windowPosts = trends.reduce((sum, trend) => sum + trend.post_count, 0);
 
   return {
@@ -324,6 +315,30 @@ export function getRelatedKeywordClusters(
       right.totalPosts - left.totalPosts ||
       left.keyword.localeCompare(right.keyword)
     );
+  });
+}
+
+export function sortAndSlugKeywordClusters(
+  clusters: Array<Omit<KeywordCluster, "slug"> & { slug?: string }>,
+) {
+  const sortedClusters = [...clusters].sort(
+    (left, right) =>
+      right.totalPosts - left.totalPosts ||
+      right.memberCount - left.memberCount ||
+      left.keyword.localeCompare(right.keyword),
+  );
+
+  const slugCounts = new Map<string, number>();
+
+  return sortedClusters.map((cluster) => {
+    const baseSlug = safeClusterSlug(cluster.keyword);
+    const count = (slugCounts.get(baseSlug) ?? 0) + 1;
+    slugCounts.set(baseSlug, count);
+
+    return {
+      ...cluster,
+      slug: count === 1 ? baseSlug : `${baseSlug}-${count}`,
+    };
   });
 }
 

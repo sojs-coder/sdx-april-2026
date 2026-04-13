@@ -10,7 +10,7 @@ test("clusters accent and demonym variants for the same root topic", () => {
   const clusters = buildKeywordClusters([
     { trend: "Hungary", trend_score: 100, post_count: 100, representative_hashtags: [] },
     { trend: "Hungarian", trend_score: 80, post_count: 80, representative_hashtags: [] },
-    { trend: "Hungría", trend_score: 60, post_count: 60, representative_hashtags: [] },
+    { trend: "Hungr\u00eda", trend_score: 60, post_count: 60, representative_hashtags: [] },
   ]);
 
   assert.equal(clusters.length, 1);
@@ -32,11 +32,11 @@ test("does not merge unrelated hashtags on a shared stopword", () => {
 
 test("keeps non-latin keywords instead of falling back to trend", () => {
   const keywords = getTrendKeywords({
-    trend: "喫茶店の日",
+    trend: "\u55ab\u8336\u5e97\u306e\u65e5",
     trend_score: 100,
     post_count: 100,
     representative_hashtags: [],
   });
 
-  assert.deepEqual(keywords, ["喫茶店の日"]);
+  assert.deepEqual(keywords, ["\u55ab\u8336\u5e97\u306e\u65e5"]);
 });
